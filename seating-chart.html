@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seating Chart &mdash; Stephen &amp; Feba</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,450&family=Newsreader:ital,wght@0,400;0,500;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --ink:#20265C;
+    --paper:#F6F2FC;
+    --paper-2:#EAE1F7;
+    --wine:#4B3A96;
+    --gold:#C9A961;
+    --blue:#1B1F45;
+    --line: rgba(32,38,92,0.18);
+    --good:#3d6b4a;
+    --warn:#a06a1f;
+    --over:#9a3b3b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 140% 90% at 50% 0%, rgba(134,112,201,0.08), transparent 55%),
+      linear-gradient(180deg, #FAF7FD 0%, #F5F0FB 40%, #EFE8F9 100%);
+    color:var(--ink);
+    font-family:'Newsreader', serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:1360px; margin:0 auto; padding:32px 20px 70px;}
+
+  header{text-align:center; margin-bottom:24px;}
+  .monogram{width:50px; height:50px; margin:0 auto 10px; display:block;}
+  h1{
+    font-family:'Fraunces', serif; font-style:italic; font-weight:450;
+    font-size:clamp(26px,4.5vw,34px); margin:0 0 4px; color:var(--wine);
+  }
+  .subhead{
+    font-family:'Space Mono', monospace; font-size:11px; letter-spacing:0.12em;
+    text-transform:uppercase; color:#6a6255;
+  }
+
+  .stats{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:22px 0 26px;}
+  .stat{
+    border:1px solid var(--gold); background:var(--paper-2);
+    padding:12px 20px; text-align:center; min-width:100px;
+    box-shadow:0 10px 20px -14px rgba(32,38,92,0.3);
+  }
+  .stat-num{font-family:'Fraunces',serif; font-size:24px; color:var(--wine); line-height:1;}
+  .stat-label{font-family:'Space Mono',monospace; font-size:9px; letter-spacing:0.08em; text-transform:uppercase; color:#6a6255; margin-top:5px;}
+
+  .layout{display:grid; grid-template-columns:300px 1fr; gap:22px; align-items:start;}
+  @media (max-width:860px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{
+    border:1px solid var(--gold); background:var(--paper-2);
+    box-shadow:0 20px 40px -24px rgba(32,38,92,0.35);
+    padding:18px;
+  }
+  .panel h2{
+    font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--wine); margin:0 0 12px;
+  }
+
+  /* selection bar */
+  .selection-bar{
+    display:none;
+    border:1px solid var(--wine); background:var(--paper);
+    padding:10px 14px; margin-bottom:14px; font-size:14px;
+  }
+  .selection-bar.active{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .selection-bar b{font-family:'Fraunces',serif; font-style:italic;}
+  .selection-bar button{
+    font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.05em; text-transform:uppercase;
+    background:none; border:1px solid var(--ink); color:var(--ink); padding:5px 10px; cursor:pointer;
+  }
+  .selection-hint{font-size:12px; font-style:italic; color:#6a6255; margin:-4px 0 12px;}
+
+  .search-row input{
+    width:100%; font-family:'Newsreader',serif; font-size:14px;
+    padding:9px 12px; border:1px solid var(--ink); background:var(--paper); color:var(--ink);
+    margin-bottom:12px;
+  }
+
+  .guest-list{display:flex; flex-direction:column; gap:7px; max-height:560px; overflow-y:auto;}
+  .guest-card{
+    border:1px solid var(--line); background:var(--paper);
+    padding:9px 11px; cursor:pointer; text-align:left; width:100%;
+    font-family:'Newsreader',serif; color:var(--ink); font-size:14px;
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    transition:border-color .15s, background .15s;
+  }
+  .guest-card:hover{border-color:var(--gold); background:var(--paper-2);}
+  .guest-card.selected{border-color:var(--wine); background:var(--wine); color:var(--paper);}
+  .guest-card{cursor:grab;}
+  .guest-card.dragging{opacity:0.4;}
+  .guest-card .gc-count{
+    font-family:'Space Mono',monospace; font-size:11px; color:var(--gold); flex-shrink:0;
+  }
+  .guest-card.selected .gc-count{color:var(--paper);}
+  .empty-note{font-style:italic; color:#7a7264; font-size:13px; padding:8px 2px;}
+
+  .add-manual{
+    margin-top:12px; display:flex; flex-direction:column; gap:7px;
+  }
+  .add-manual input{
+    font-family:'Newsreader',serif; font-size:13px; padding:8px 10px;
+    border:1px solid var(--ink); background:var(--paper); color:var(--ink);
+  }
+  .add-manual button{
+    font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase;
+    padding:9px; background:var(--wine); color:var(--paper); border:1px solid var(--wine); cursor:pointer;
+  }
+  .add-manual button:hover{background:var(--paper); color:var(--wine);}
+
+  /* floor plan */
+  .floorplan-outer{
+    border:1px solid var(--gold); background:#fff;
+    box-shadow:0 20px 40px -24px rgba(32,38,92,0.35);
+    padding:16px; margin-bottom:22px;
+  }
+  .floorplan{
+    position:relative; width:100%; aspect-ratio:4/3; background:#fdfcfb;
+    border:1px solid var(--line); overflow:hidden;
+  }
+  .fp-room{
+    position:absolute; border:1px solid var(--ink); display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono',monospace; font-size:10px; text-align:center; color:var(--ink); background:#fafafa;
+  }
+  .fp-room.bar{background:#ece6f7;}
+  .fp-room.dancefloor{background:#f7f5f2; font-size:12px; letter-spacing:0.08em;}
+  .fp-label{
+    position:absolute; font-family:'Space Mono',monospace; font-size:9px; color:#9a9284; letter-spacing:0.04em;
+  }
+  .fp-table{
+    position:absolute; width:7.2%; aspect-ratio:1/1; border-radius:50%;
+    border:1.5px solid var(--wine); background:#f1ecfa;
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    cursor:pointer; transform:translate(-50%,-50%);
+    font-family:'Fraunces',serif; color:var(--ink);
+    transition:transform .12s, box-shadow .12s;
+  }
+  .fp-table:hover{transform:translate(-50%,-50%) scale(1.08); box-shadow:0 4px 14px rgba(32,38,92,0.3); z-index:5;}
+  .fp-table .fp-num{font-size:clamp(9px,1.4vw,13px); line-height:1;}
+  .fp-table .fp-fill{font-family:'Space Mono',monospace; font-size:clamp(6px,0.9vw,9px); margin-top:1px;}
+  .fp-table.empty{background:#f1ecfa; border-color:var(--line);}
+  .fp-table.under{background:#fdf3e0; border-color:var(--warn);}
+  .fp-table.full{background:#e7f1ea; border-color:var(--good);}
+  .fp-table.over{background:#f7e4e4; border-color:var(--over);}
+  .fp-table.selectable{animation:fpPulse 1.1s ease-in-out infinite;}
+  @keyframes fpPulse{ 0%,100%{box-shadow:0 0 0 0 rgba(75,58,150,0.35);} 50%{box-shadow:0 0 0 7px rgba(75,58,150,0);} }
+  .fp-table.drag-over{transform:translate(-50%,-50%) scale(1.18); box-shadow:0 0 0 4px var(--gold), 0 6px 18px rgba(32,38,92,0.4); z-index:6;}
+  .fp-table.drag-reject{transform:translate(-50%,-50%) scale(1.1); box-shadow:0 0 0 4px var(--over); z-index:6;}
+
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin-top:12px; font-family:'Space Mono',monospace; font-size:10px; color:#6a6255;}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .legend i{width:11px; height:11px; border-radius:50%; display:inline-block; border:1.5px solid;}
+  .legend .i-empty{background:#f1ecfa; border-color:var(--line);}
+  .legend .i-under{background:#fdf3e0; border-color:var(--warn);}
+  .legend .i-full{background:#e7f1ea; border-color:var(--good);}
+  .legend .i-over{background:#f7e4e4; border-color:var(--over);}
+
+  /* table list */
+  .table-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:12px;}
+  .table-card{border:1px solid var(--line); background:var(--paper); padding:12px 14px;}
+  .table-card-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;}
+  .table-card-head .tc-num{font-family:'Fraunces',serif; font-style:italic; font-size:18px; color:var(--wine);}
+  .table-card-head .tc-count{font-family:'Space Mono',monospace; font-size:11px;}
+  .tc-count.under{color:var(--warn);}
+  .tc-count.full{color:var(--good);}
+  .tc-count.over{color:var(--over);}
+  .tc-guests{display:flex; flex-direction:column; gap:5px;}
+  .tc-guest{
+    display:flex; justify-content:space-between; align-items:center; gap:6px;
+    font-size:13px; border-bottom:1px dotted var(--line); padding-bottom:4px;
+  }
+  .tc-guest button{
+    background:none; border:none; color:#a08a8a; cursor:pointer; font-size:13px; line-height:1; padding:0 2px;
+  }
+  .tc-guest button:hover{color:var(--over);}
+  .tc-empty-note{font-style:italic; color:#9a9284; font-size:12px;}
+
+  .toolbar-row{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-bottom:14px;}
+  button.btn{
+    font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase;
+    padding:9px 16px; background:var(--wine); color:var(--paper); border:1px solid var(--wine); cursor:pointer;
+  }
+  button.btn.secondary{background:var(--paper); color:var(--wine);}
+  button.btn:hover{opacity:0.85;}
+
+  .toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:var(--paper); padding:10px 18px; font-size:13px;
+    border:1px solid var(--gold); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+    z-index:999; max-width:90vw; text-align:center;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .state-msg{text-align:center; font-style:italic; color:#6a6255; padding:30px 0;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <svg class="monogram" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="40" cy="40" r="30" stroke="var(--gold)" stroke-width="1"/>
+      <circle cx="40" cy="40" r="34" stroke="var(--gold)" stroke-width="0.6" opacity="0.5"/>
+      <text x="40" y="49" text-anchor="middle" font-family="Fraunces, serif" font-style="italic" font-size="24" fill="var(--ink)">S&amp;F</text>
+    </svg>
+    <h1>Seating Chart</h1>
+    <div class="subhead">Westmount Country Club &middot; Grand Ballroom &middot; 33 tables &middot; 10&ndash;12 per table</div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar-row">
+    <button class="btn secondary" id="refreshBtn">Refresh</button>
+    <button class="btn secondary" id="exportBtn">Export Seating List (CSV)</button>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Confirmed Guests</h2>
+      <div class="selection-bar" id="selectionBar">
+        <span>Seating <b id="selectedName"></b></span>
+        <button type="button" id="cancelSelectBtn">Cancel</button>
+      </div>
+      <p class="selection-hint" id="selectionHint">Drag a guest onto a table, or click one then click a table.</p>
+      <div class="search-row">
+        <input type="text" id="searchInput" placeholder="Search unseated guests&hellip;" autocomplete="off">
+      </div>
+      <div class="guest-list" id="guestList"></div>
+
+      <div class="add-manual">
+        <input type="text" id="manualName" placeholder="Name (e.g. Officiant, DJ, Grandma)">
+        <input type="number" id="manualCount" placeholder="Seats needed" min="1" value="1">
+        <button type="button" id="manualAddBtn">+ Add to Guest List</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="floorplan-outer">
+        <div class="floorplan" id="floorplan">
+          <div class="state-msg" id="fpLoading" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">Loading seating data&hellip;</div>
+        </div>
+        <div class="legend">
+          <span><i class="i-empty"></i> Empty</span>
+          <span><i class="i-under"></i> Under 10</span>
+          <span><i class="i-full"></i> 10&ndash;12 (good)</span>
+          <span><i class="i-over"></i> Over 12</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Table Details</h2>
+        <div class="table-grid" id="tableGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var SUPABASE_URL = 'https://fdcswbuhflwncxusfmra.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_ZE1OzAv_zst4ekTfhCZK2g_JHrN5Cw4';
+  var supabaseClient = null;
+  if (window.supabase) {
+    try { supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+    catch(e){ console.error('Supabase init failed', e); }
+  }
+
+  var TABLE_COUNT = 33;
+  var MIN_SEATS = 10;
+  var MAX_SEATS = 12;
+
+  // Approximate positions (percent of floorplan box) matching the venue's layout photo
+  var TABLE_POS = {
+    1:[37.3,24.6], 2:[43.3,24.6], 3:[49.1,24.6],
+    7:[34.5,30.2], 6:[40.4,30.2], 5:[46.2,30.2], 4:[52.0,30.2],
+    8:[33.0,36.8], 9:[38.3,36.8], 10:[43.6,36.8], 11:[49.0,36.8], 12:[54.3,36.8],
+    15:[33.8,43.9], 14:[44.0,43.9], 13:[53.3,43.9],
+    16:[26.3,50.6], 18:[40.4,50.6], 20:[51.2,50.6],
+    17:[35.0,53.3], 19:[45.8,55.7],
+    21:[56.9,54.4], 22:[63.3,53.9], 23:[69.5,55.0],
+    25:[61.5,59.9], 24:[67.6,59.9],
+    28:[20.1,58.3], 27:[26.3,57.8], 26:[31.7,58.3],
+    29:[26.0,65.5],
+    30:[62.0,79.8], 31:[68.4,79.8],
+    33:[65.2,87.0], 32:[72.5,87.0]
+  };
+
+  var allRows = [];
+  var selectedId = null;
+  var draggingGuestId = null;
+  var toastTimer = null;
+
+  var statsEl = document.getElementById('stats');
+  var guestListEl = document.getElementById('guestList');
+  var searchInput = document.getElementById('searchInput');
+  var selectionBar = document.getElementById('selectionBar');
+  var selectedNameEl = document.getElementById('selectedName');
+  var selectionHint = document.getElementById('selectionHint');
+  var cancelSelectBtn = document.getElementById('cancelSelectBtn');
+  var floorplan = document.getElementById('floorplan');
+  var tableGrid = document.getElementById('tableGrid');
+  var refreshBtn = document.getElementById('refreshBtn');
+  var exportBtn = document.getElementById('exportBtn');
+  var manualName = document.getElementById('manualName');
+  var manualCount = document.getElementById('manualCount');
+  var manualAddBtn = document.getElementById('manualAddBtn');
+  var toast = document.getElementById('toast');
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+  }
+
+  function partySize(r){
+    var n = (parseInt(r.adults, 10) || 0) + (parseInt(r.kids, 10) || 0);
+    return n > 0 ? n : 1;
+  }
+
+  async function loadData(){
+    if (!supabaseClient) {
+      floorplan.innerHTML = '<div class="state-msg" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">Not connected to Supabase.</div>';
+      return;
+    }
+    try {
+      var res = await supabaseClient.from('rsvps').select('*').eq('attending', 'yes').order('name');
+      if (res.error) throw res.error;
+      allRows = res.data || [];
+      render();
+    } catch(err){
+      console.error('Load failed', err);
+      floorplan.innerHTML = '<div class="state-msg" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">Could not load guest data: ' + escapeHtml(err.message || 'unknown error') + '</div>';
+    }
+  }
+
+  function buildFloorplanChrome(){
+    var chrome = [
+      {cls:'fp-room', style:'left:19.4%; top:24.7%; width:6.6%; height:8.6%;', text:'Ladies<br>Room'},
+      {cls:'fp-room', style:'left:19.4%; top:33.3%; width:6.6%; height:8.6%;', text:'Mens<br>Room'},
+      {cls:'fp-room bar', style:'left:8.9%; top:48.3%; width:9.3%; height:4.2%;', text:'BAR'},
+      {cls:'fp-room bar', style:'left:8.9%; top:86.1%; width:9.3%; height:4.3%;', text:'BAR'},
+      {cls:'fp-room', style:'left:19.4%; top:77.3%; width:10.7%; height:5.1%;', text:'BAND'},
+      {cls:'fp-room dancefloor', style:'left:32.6%; top:62.6%; width:24.0%; height:23.7%;', text:'DANCE FLOOR'},
+      {cls:'fp-room', style:'left:40.5%; top:81.3%; width:8.3%; height:3.7%; font-size:9px;', text:'B&amp;G'}
+    ];
+    chrome.forEach(function(c){
+      var div = document.createElement('div');
+      div.className = c.cls;
+      div.setAttribute('style', c.style);
+      div.innerHTML = c.text;
+      floorplan.appendChild(div);
+    });
+  }
+
+  function tableStatusClass(count){
+    if (count === 0) return 'empty';
+    if (count < MIN_SEATS) return 'under';
+    if (count > MAX_SEATS) return 'over';
+    return 'full';
+  }
+
+  function render(){
+    var unassigned = allRows.filter(function(r){ return !r.table_number; });
+    var query = searchInput.value.trim().toLowerCase();
+    var visibleUnassigned = query
+      ? unassigned.filter(function(r){ return (r.name || '').toLowerCase().indexOf(query) !== -1; })
+      : unassigned;
+
+    // ---- stats ----
+    var totalGuests = allRows.reduce(function(sum, r){ return sum + partySize(r); }, 0);
+    var seatedGuests = allRows.filter(function(r){ return r.table_number; }).reduce(function(sum, r){ return sum + partySize(r); }, 0);
+    var tablesUsed = new Set(allRows.filter(function(r){ return r.table_number; }).map(function(r){ return r.table_number; })).size;
+    statsEl.innerHTML = [
+      {n: allRows.length, l:'Confirmed Parties'},
+      {n: totalGuests, l:'Total Guests'},
+      {n: seatedGuests, l:'Seated'},
+      {n: totalGuests - seatedGuests, l:'Unseated'},
+      {n: tablesUsed + ' / ' + TABLE_COUNT, l:'Tables Used'}
+    ].map(function(s){
+      return '<div class="stat"><div class="stat-num">' + s.n + '</div><div class="stat-label">' + s.l + '</div></div>';
+    }).join('');
+
+    // ---- guest list ----
+    if (visibleUnassigned.length === 0) {
+      guestListEl.innerHTML = '<p class="empty-note">' + (unassigned.length === 0 ? 'Everyone confirmed is seated.' : 'No matches.') + '</p>';
+    } else {
+      guestListEl.innerHTML = visibleUnassigned.map(function(r){
+        return '<button type="button" class="guest-card' + (r.id === selectedId ? ' selected' : '') + '" data-id="' + r.id + '" draggable="true">' +
+          '<span>' + escapeHtml(r.name) + '</span>' +
+          '<span class="gc-count">' + partySize(r) + (partySize(r) === 1 ? ' guest' : ' guests') + '</span>' +
+        '</button>';
+      }).join('');
+      Array.prototype.forEach.call(guestListEl.querySelectorAll('.guest-card'), function(btn){
+        btn.addEventListener('click', function(){
+          var id = btn.getAttribute('data-id');
+          selectedId = (selectedId === id) ? null : id;
+          render();
+        });
+        btn.addEventListener('dragstart', function(e){
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', btn.getAttribute('data-id'));
+          draggingGuestId = btn.getAttribute('data-id');
+          btn.classList.add('dragging');
+        });
+        btn.addEventListener('dragend', function(){
+          draggingGuestId = null;
+          btn.classList.remove('dragging');
+        });
+      });
+    }
+
+    // selection bar
+    var selectedRow = selectedId ? allRows.find(function(r){ return r.id === selectedId; }) : null;
+    if (selectedRow) {
+      selectionBar.classList.add('active');
+      selectedNameEl.textContent = selectedRow.name + ' (' + partySize(selectedRow) + ')';
+      selectionHint.textContent = 'Now click an open table to seat them.';
+    } else {
+      selectionBar.classList.remove('active');
+      selectionHint.textContent = 'Drag a guest onto a table, or click one then click a table.';
+    }
+
+    // ---- per-table counts ----
+    var tableData = {};
+    for (var t = 1; t <= TABLE_COUNT; t++) tableData[t] = [];
+    allRows.forEach(function(r){
+      if (r.table_number && tableData[r.table_number]) tableData[r.table_number].push(r);
+    });
+
+    // ---- floor plan ----
+    floorplan.innerHTML = '';
+    buildFloorplanChrome();
+    Object.keys(TABLE_POS).forEach(function(key){
+      var num = parseInt(key, 10);
+      var pos = TABLE_POS[key];
+      var guests = tableData[num] || [];
+      var count = guests.reduce(function(sum, r){ return sum + partySize(r); }, 0);
+      var statusCls = tableStatusClass(count);
+      var el = document.createElement('div');
+      el.className = 'fp-table ' + statusCls + (selectedRow && count + partySize(selectedRow) <= MAX_SEATS ? ' selectable' : '');
+      el.style.left = pos[0] + '%';
+      el.style.top = pos[1] + '%';
+      el.innerHTML = '<span class="fp-num">' + num + '</span><span class="fp-fill">' + count + '/' + MAX_SEATS + '</span>';
+      el.title = 'Table ' + num + ': ' + count + ' seated' + (guests.length ? ' — ' + guests.map(function(g){ return g.name; }).join(', ') : '');
+      el.addEventListener('click', function(n){
+        return function(){ onTableClick(n); };
+      }(num));
+      el.addEventListener('dragover', function(n){
+        return function(e){
+          e.preventDefault();
+          var draggedId = draggingGuestId;
+          var row = draggedId ? allRows.find(function(r){ return r.id === draggedId; }) : null;
+          var currentCount = allRows.filter(function(r){ return r.table_number === n && r.id !== draggedId; })
+            .reduce(function(sum, r){ return sum + partySize(r); }, 0);
+          var fits = row && (currentCount + partySize(row) <= MAX_SEATS);
+          e.dataTransfer.dropEffect = fits ? 'move' : 'none';
+          this.classList.toggle('drag-over', !!fits);
+          this.classList.toggle('drag-reject', !fits);
+        };
+      }(num));
+      el.addEventListener('dragleave', function(){
+        this.classList.remove('drag-over', 'drag-reject');
+      });
+      el.addEventListener('drop', function(n){
+        return function(e){
+          e.preventDefault();
+          this.classList.remove('drag-over', 'drag-reject');
+          var guestId = e.dataTransfer.getData('text/plain');
+          if (guestId) assignGuestToTable(guestId, n);
+        };
+      }(num));
+      floorplan.appendChild(el);
+    });
+
+    // ---- table detail cards ----
+    tableGrid.innerHTML = '';
+    for (var tn = 1; tn <= TABLE_COUNT; tn++) {
+      var guestsT = tableData[tn] || [];
+      var countT = guestsT.reduce(function(sum, r){ return sum + partySize(r); }, 0);
+      var cls = tableStatusClass(countT);
+      var countCls = cls === 'empty' ? '' : (cls === 'over' ? 'over' : (cls === 'under' ? 'under' : 'full'));
+      var card = document.createElement('div');
+      card.className = 'table-card';
+      var guestsHtml = guestsT.length
+        ? guestsT.map(function(g){
+            return '<div class="tc-guest"><span>' + escapeHtml(g.name) + ' (' + partySize(g) + ')</span>' +
+              '<button type="button" data-unassign="' + g.id + '" title="Remove from table">&times;</button></div>';
+          }).join('')
+        : '<div class="tc-empty-note">No one seated yet</div>';
+      card.innerHTML =
+        '<div class="table-card-head"><span class="tc-num">Table ' + tn + '</span><span class="tc-count ' + countCls + '">' + countT + ' / ' + MAX_SEATS + '</span></div>' +
+        '<div class="tc-guests">' + guestsHtml + '</div>';
+      tableGrid.appendChild(card);
+    }
+    Array.prototype.forEach.call(tableGrid.querySelectorAll('[data-unassign]'), function(btn){
+      btn.addEventListener('click', function(){
+        unassignGuest(btn.getAttribute('data-unassign'));
+      });
+    });
+  }
+
+  function onTableClick(tableNum){
+    if (!selectedId) {
+      // just scroll to the corresponding table card for reference
+      return;
+    }
+    assignGuestToTable(selectedId, tableNum);
+  }
+
+  async function assignGuestToTable(guestId, tableNum){
+    var row = allRows.find(function(r){ return r.id === guestId; });
+    if (!row) return;
+
+    var currentCount = allRows.filter(function(r){ return r.table_number === tableNum && r.id !== guestId; })
+      .reduce(function(sum, r){ return sum + partySize(r); }, 0);
+
+    if (currentCount + partySize(row) > MAX_SEATS) {
+      showToast('Table ' + tableNum + ' only has room for ' + (MAX_SEATS - currentCount) + ' more — pick another table or split the party.');
+      return;
+    }
+
+    try {
+      var res = await supabaseClient.from('rsvps').update({ table_number: tableNum }).eq('id', row.id);
+      if (res.error) throw res.error;
+      row.table_number = tableNum;
+      selectedId = null;
+      render();
+      showToast(row.name + ' seated at Table ' + tableNum + '.');
+    } catch(err){
+      console.error('Assign failed', err);
+      showToast('Could not save — please try again.');
+    }
+  }
+
+  async function unassignGuest(id){
+    var row = allRows.find(function(r){ return r.id === id; });
+    if (!row) return;
+    try {
+      var res = await supabaseClient.from('rsvps').update({ table_number: null }).eq('id', id);
+      if (res.error) throw res.error;
+      row.table_number = null;
+      render();
+      showToast(row.name + ' moved back to the unseated list.');
+    } catch(err){
+      console.error('Unassign failed', err);
+      showToast('Could not save — please try again.');
+    }
+  }
+
+  cancelSelectBtn.addEventListener('click', function(){ selectedId = null; render(); });
+  searchInput.addEventListener('input', render);
+  refreshBtn.addEventListener('click', loadData);
+
+  manualAddBtn.addEventListener('click', async function(){
+    var name = manualName.value.trim();
+    var count = parseInt(manualCount.value, 10) || 1;
+    if (!name) { showToast('Enter a name first.'); return; }
+    try {
+      var res = await supabaseClient.from('rsvps').insert([{
+        name: name, attending: 'yes', adults: count, kids: 0,
+        notes: 'Added manually from seating chart', submitted_at: new Date().toISOString()
+      }]).select();
+      if (res.error) throw res.error;
+      if (res.data && res.data[0]) allRows.push(res.data[0]);
+      manualName.value = '';
+      manualCount.value = '1';
+      render();
+      showToast(name + ' added to the guest list.');
+    } catch(err){
+      console.error('Manual add failed', err);
+      showToast('Could not add — please try again.');
+    }
+  });
+
+  exportBtn.addEventListener('click', function(){
+    var headers = ['Table', 'Name', 'Guests'];
+    var lines = [headers.join(',')];
+    for (var tn = 1; tn <= TABLE_COUNT; tn++) {
+      var guestsT = allRows.filter(function(r){ return r.table_number === tn; });
+      guestsT.forEach(function(g){
+        lines.push([tn, '"' + g.name.replace(/"/g,'""') + '"', partySize(g)].join(','));
+      });
+    }
+    var unseated = allRows.filter(function(r){ return !r.table_number; });
+    unseated.forEach(function(g){
+      lines.push(['Unseated', '"' + g.name.replace(/"/g,'""') + '"', partySize(g)].join(','));
+    });
+    var blob = new Blob([lines.join(String.fromCharCode(10))], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'seating-chart.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  loadData();
+})();
+</script>
+
+</body>
+</html>
