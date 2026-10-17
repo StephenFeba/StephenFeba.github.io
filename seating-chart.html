@@ -215,6 +215,29 @@
   .table-card.focus{border-color:var(--wine); box-shadow:0 0 0 2px var(--gold);}
   .tc-guest .tc-cat{font-family:'Space Mono',monospace; font-size:9px; color:#8a8274; display:block;}
   .tc-guest.ya span:first-child{font-style:italic;}
+  .plan-status{font-family:'Space Mono',monospace; font-size:10px; color:#6a6255; align-self:center; margin-right:auto;}
+  .plan-status.warn{color:var(--warn);}
+  .plan-section-h{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--wine); margin:14px 0 7px; display:flex; justify-content:space-between;}
+  .plan-section-h:first-of-type{margin-top:0;}
+  .dropzone{border:1px dashed var(--line); padding:6px; min-height:44px;}
+  .dropzone.drag-over{border-color:var(--gold); background:rgba(201,169,97,0.12);}
+  .pg-row{display:flex; gap:6px; align-items:stretch;}
+  .pg-row .guest-card{flex:1;}
+  .pg-edit{background:var(--paper); border:1px solid var(--line); cursor:pointer; color:var(--wine); font-size:13px; padding:0 8px;}
+  .pg-edit:hover{border-color:var(--gold);}
+  .tc-guest.pg{cursor:grab; align-items:center;}
+  .tc-guest.pg .pg-name{cursor:pointer; flex:1; text-align:left; background:none; border:none; font:inherit; color:inherit; padding:0;}
+  .tc-guest.pg .pg-name:hover{color:var(--wine); text-decoration:underline;}
+  .tc-guest.dragging{opacity:0.4;}
+  .table-card.drag-over{border-color:var(--gold); box-shadow:0 0 0 3px var(--gold);}
+  .modal-back{position:fixed; inset:0; background:rgba(27,31,69,0.45); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px;}
+  .modal-back[hidden]{display:none;}
+  .modal{background:var(--paper); border:1px solid var(--gold); padding:22px; width:min(380px,100%); display:flex; flex-direction:column; gap:12px;}
+  .modal h3{font-family:'Fraunces',serif; font-style:italic; font-weight:450; color:var(--wine); margin:0; font-size:22px;}
+  .modal label{display:flex; flex-direction:column; gap:4px; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#6a6255;}
+  .modal input, .modal select{font-family:'Newsreader',serif; font-size:15px; padding:8px 10px; border:1px solid var(--ink); background:#fff; color:var(--ink); text-transform:none; letter-spacing:0;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:4px;}
+  .modal-actions .danger{margin-right:auto; color:var(--over); border-color:var(--over);}
   .state-msg{text-align:center; font-style:italic; color:#6a6255; padding:30px 0;}
 </style>
 </head>
@@ -286,17 +309,28 @@
   </div><!-- /liveView -->
 
   <div id="planView" hidden>
-    <p class="plan-note">Draft arrangement built from the full invite list (318 guests): Immediate Family at 18&ndash;20, Feba &amp; Boston guests at 16 and 26&ndash;29, and PCP / young adults seated together at 24, 25 and 30. Read-only &mdash; use Live RSVPs to seat confirmed guests.</p>
+    <p class="plan-note">Draft arrangement built from the full invite list (318 guests): Immediate Family at 18&ndash;20, Feba &amp; Boston guests at 16 and 26&ndash;29, and PCP / young adults seated together at 24, 25 and 30. Drag guests between tables, click a name to edit or remove it, or add new people. Changes save automatically.</p>
     <div class="stats" id="planStats"></div>
     <div class="toolbar-row">
-      <button class="btn secondary" id="planExportBtn">Export Plan (CSV)</button>
+      <span class="plan-status" id="planStatus"></span>
+      <button class="btn secondary" id="planUndoBtn">Undo</button>
+      <button class="btn" id="planAddBtn">+ Add Guest / Party</button>
+      <button class="btn secondary" id="planExportBtn">Export CSV</button>
+      <button class="btn secondary" id="planJsonBtn">Backup (JSON)</button>
+      <button class="btn secondary" id="planImportBtn">Restore</button>
+      <button class="btn secondary" id="planResetBtn">Reset to Original</button>
+      <input type="file" id="planImportFile" accept="application/json,.json" hidden>
     </div>
     <div class="layout">
       <div class="panel">
-        <h2>Find a Guest</h2>
+        <h2>Find &amp; Move Guests</h2>
+        <p class="selection-hint" id="planHint">Drag a name onto a table, or click one then click a table.</p>
         <div class="search-row">
           <input type="text" id="planSearch" placeholder="Search name or table&hellip;" autocomplete="off">
         </div>
+        <div class="plan-section-h"><span>Unseated</span><span id="planUnCount"></span></div>
+        <div class="guest-list dropzone" id="planUnseated" style="max-height:240px"></div>
+        <div class="plan-section-h"><span>All guests</span><span id="planAllCount"></span></div>
         <div class="guest-list" id="planGuestList"></div>
       </div>
       <div>
@@ -314,6 +348,21 @@
           <div class="table-grid" id="planTableGrid"></div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="planModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3 id="pmTitle">Edit guest</h3>
+    <label>Name <input type="text" id="pmName" autocomplete="off"></label>
+    <label>Number of guests <input type="number" id="pmSize" min="1" value="1"></label>
+    <label>Table <select id="pmTable"></select></label>
+    <label>Group / note (optional) <input type="text" id="pmCat" autocomplete="off"></label>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary danger" id="pmDelete">Delete</button>
+      <button type="button" class="btn secondary" id="pmCancel">Cancel</button>
+      <button type="button" class="btn" id="pmSave">Save</button>
     </div>
   </div>
 </div>
@@ -672,107 +721,400 @@
     URL.revokeObjectURL(url);
   });
 
-  // ---------- Planned seating view (read-only) ----------
-  var PLAN = [{"t":1,"n":"Abi Velurethu","s":2,"c":"PCP Church"},{"t":1,"n":"Blesson Philip","s":2,"c":"PCP Church"},{"t":1,"n":"Jaison Rajan","s":2,"c":"PCP Church"},{"t":1,"n":"Noble Mathew","s":2,"c":"PCP Church"},{"t":1,"n":"Sean Mathew","s":2,"c":"PCP Church"},{"t":1,"n":"Jessen Alancheril","s":2,"c":"Extended Family"},{"t":2,"n":"Lal Chacko","s":2,"c":"Extended Family"},{"t":2,"n":"Sean Philip","s":2,"c":"Extended Family"},{"t":2,"n":"Chacko Pallivathukkal","s":2,"c":"Extended Family"},{"t":2,"n":"Varghese Joseph (Salim)","s":1,"c":"Extended Family"},{"t":2,"n":"Reuben Sam","s":3,"c":"Stephen Friends"},{"t":2,"n":"Bibin Mathew","s":2,"c":"Stephen Friends"},{"t":3,"n":"Philip Varughese","s":3,"c":"Family Friend"},{"t":3,"n":"Bini Mathew","s":1,"c":"Family Friend"},{"t":3,"n":"Sara Samuel","s":2,"c":"Family Friend"},{"t":3,"n":"Benoy Thomas","s":2,"c":"PCP Church"},{"t":3,"n":"Biju Jacob","s":2,"c":"PCP Church"},{"t":3,"n":"Shaji Mathew","s":2,"c":"PCP Church"},{"t":4,"n":"Jacob George","s":2,"c":"Extended Family"},{"t":4,"n":"Sam George","s":2,"c":"Extended Family"},{"t":4,"n":"Belwin Chacko","s":4,"c":"PCP Church"},{"t":4,"n":"Linda George","s":1,"c":"PCP Church"},{"t":4,"n":"Thomas Abraham","s":3,"c":"PCP Church"},{"t":5,"n":"Mathai Joseph","s":3,"c":"Extended Family"},{"t":5,"n":"Annamma Simon","s":3,"c":"Extended Family"},{"t":5,"n":"Sunil John","s":3,"c":"Extended Family"},{"t":5,"n":"Thomas Jacob","s":1,"c":"Extended Family"},{"t":5,"n":"Shawn Jacob","s":2,"c":"Extended Family"},{"t":6,"n":"Jacob Mathew","s":3,"c":"Extended Family"},{"t":6,"n":"John Edavettal","s":3,"c":"Extended Family"},{"t":6,"n":"Blesson Geevarghese","s":3,"c":"PCP Church"},{"t":6,"n":"Jeevan Varghese","s":3,"c":"PCP Church"},{"t":7,"n":"Jefry Aby Kurian","s":2,"c":"PCP Church"},{"t":7,"n":"Amal Mathew","s":1,"c":"PCP Church"},{"t":7,"n":"Mathew Varghese","s":3,"c":"PCP Church"},{"t":7,"n":"Stanley Eapen Cherian","s":3,"c":"PCP Church"},{"t":7,"n":"Wesley Thampy","s":3,"c":"PCP Church"},{"t":8,"n":"Saji Mathew","s":2,"c":"Extended Family"},{"t":8,"n":"Sajee Varkey","s":2,"c":"Extended Family"},{"t":8,"n":"Jolley Philip","s":2,"c":"Extended Family"},{"t":8,"n":"Sajumon Joy","s":2,"c":"Extended Family"},{"t":8,"n":"Alexander Cherian","s":2,"c":"Extended Family"},{"t":8,"n":"Geomon George","s":2,"c":"Family Friend"},{"t":9,"n":"Pastor Mathew D. George","s":2,"c":"Pastor"},{"t":9,"n":"Pastor Cherian P Cherian","s":2,"c":"Pastor"},{"t":9,"n":"Pastor John Mathew","s":2,"c":"Pastor"},{"t":9,"n":"Pastor Sajan Mathew","s":2,"c":"Pastor"},{"t":9,"n":"Anil Kuruvila","s":2,"c":"PCP Church"},{"t":9,"n":"Bosy Chandapillai","s":2,"c":"PCP Church"},{"t":10,"n":"Daniel George","s":2,"c":"PCP Church"},{"t":10,"n":"Finney Abraham","s":2,"c":"PCP Church"},{"t":10,"n":"Geevarghese M George","s":2,"c":"PCP Church"},{"t":10,"n":"Hermise Raju","s":2,"c":"PCP Church"},{"t":10,"n":"Jinto K George","s":2,"c":"PCP Church"},{"t":10,"n":"Johnson B Mathew","s":2,"c":"PCP Church"},{"t":11,"n":"Josen Varghese","s":2,"c":"PCP Church"},{"t":11,"n":"Joseph S Jose","s":2,"c":"PCP Church"},{"t":11,"n":"Joseph Varghese (Pastor)","s":2,"c":"Pastor"},{"t":11,"n":"Kevin McDermott","s":2,"c":"PCP Church"},{"t":11,"n":"Levis Abraham","s":2,"c":"PCP Church"},{"t":11,"n":"Riya Ninan","s":2,"c":"PCP Church"},{"t":12,"n":"Philip P Mathai","s":2,"c":"PCP Church"},{"t":12,"n":"Shogy Madhavasseril Babu","s":2,"c":"PCP Church"},{"t":12,"n":"Robin Sunny","s":2,"c":"PCP Church"},{"t":12,"n":"Roy Mathew","s":2,"c":"PCP Church"},{"t":12,"n":"Shinu Varghese","s":2,"c":"PCP Church"},{"t":12,"n":"Sony Antony","s":2,"c":"PCP Church"},{"t":13,"n":"Koshy Raju","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Kodithoppil","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Varghese","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Varghese","s":2,"c":"PCP Church"},{"t":13,"n":"Jacob Mathew","s":2,"c":"PCP Church"},{"t":13,"n":"Biji Babu","s":2,"c":"PCP Church"},{"t":14,"n":"Stanley George","s":2,"c":"PCP Church"},{"t":14,"n":"Lena Chacko","s":2,"c":"Family Friend"},{"t":14,"n":"Tony Joesph","s":2,"c":"Extended Family"},{"t":14,"n":"Micky Asir","s":2,"c":"Immediate Family"},{"t":14,"n":"Sabu Samuel","s":2,"c":"Boston Church"},{"t":14,"n":"Mathew Thomas","s":1,"c":"Extended Family"},{"t":14,"n":"Bijo Joseph","s":1,"c":"Extended Family"},{"t":15,"n":"Asha Varghese (NY)","s":1,"c":"Family Friend"},{"t":15,"n":"Suja Mathew","s":1,"c":"Extended Family"},{"t":15,"n":"Abhi Patel","s":1,"c":"Stephen Friends"},{"t":15,"n":"Isaac Hong","s":1,"c":"Stephen Friends"},{"t":15,"n":"Shawn Abraham","s":1,"c":"Stephen Friends"},{"t":15,"n":"Cody Liu","s":1,"c":"Stephen Friends"},{"t":15,"n":"Leena Mathew","s":1,"c":"PCP Church"},{"t":15,"n":"Lyni Sunil","s":1,"c":"PCP Church"},{"t":15,"n":"Soni R S","s":1,"c":"PCP Church"},{"t":15,"n":"Eapen Cherian","s":1,"c":"PCP Church"},{"t":15,"n":"Roshini Thomas","s":1,"c":"PCP Church"},{"t":15,"n":"Jose kuruvila","s":1,"c":"PCP Church"},{"t":16,"n":"Mathew Philip (JoyKutty)","s":3,"c":"Boston Church"},{"t":16,"n":"Mathew Tharakan","s":3,"c":"Boston Church"},{"t":16,"n":"Fredi David","s":2,"c":"Feba Family"},{"t":16,"n":"Pr Bethel Johnson","s":2,"c":"Boston Church"},{"t":16,"n":"Lance Daniel","s":2,"c":"Boston Church"},{"t":17,"n":"Usha Jose","s":1,"c":"PCP Church"},{"t":17,"n":"Aneena Alex","s":1,"c":"Family Friend"},{"t":17,"n":"Rejini Abraham","s":1,"c":"Family Friend"},{"t":17,"n":"Varughese m mathew","s":1,"c":"Family Friend"},{"t":17,"n":"Anil Mathew","s":1,"c":"Immediate Family"},{"t":17,"n":"Rincy Roy","s":1,"c":"Immediate Family"},{"t":17,"n":"Roslyn Roy","s":1,"c":"Immediate Family"},{"t":17,"n":"Dany Kevin Johnson (Pastor)","s":1,"c":"Chicago"},{"t":17,"n":"Bipin Zachariah","s":1,"c":"Boston Church"},{"t":17,"n":"Febin Fredi","s":1,"c":"Feba Family"},{"t":18,"n":"Abraham Cherian","s":2,"c":"Immediate Family"},{"t":18,"n":"Vinu Joseph","s":2,"c":"Immediate Family"},{"t":18,"n":"Roshan Joseph","s":4,"c":"Immediate Family"},{"t":18,"n":"Sanju Zachariah","s":4,"c":"Immediate Family"},{"t":19,"n":"Prasad Abraham","s":5,"c":"Immediate Family"},{"t":19,"n":"Cherian Abraham","s":4,"c":"Immediate Family"},{"t":19,"n":"Jenson Jen Jacob","s":3,"c":"Immediate Family"},{"t":20,"n":"Mercy Mathew","s":3,"c":"Immediate Family"},{"t":20,"n":"Roy Varghese","s":2,"c":"Immediate Family"},{"t":20,"n":"Rajan (Mathew)","s":1,"c":"Immediate Family"},{"t":20,"n":"Shibi George","s":3,"c":"Immediate Family"},{"t":20,"n":"Johnson Zachariah","s":2,"c":"Immediate Family"},{"t":20,"n":"Pheba Johnson","s":1,"c":"Immediate Family"},{"t":24,"n":"Jason Daniel","s":1,"c":"PCP Church"},{"t":24,"n":"Justin Daniel","s":1,"c":"PCP Church"},{"t":24,"n":"Jaison Johnson","s":1,"c":"PCP Church"},{"t":24,"n":"Josh Varghese (JV)","s":1,"c":"PCP Church"},{"t":24,"n":"Justin Sunil","s":1,"c":"PCP Church"},{"t":24,"n":"Delvin Cherian","s":2,"c":"Boston Young Adults"},{"t":24,"n":"Reshma Joseph","s":1,"c":"Boston Young Adults"},{"t":24,"n":"Benjamin George","s":1,"c":"Boston Young Adults"},{"t":24,"n":"Aaliyah Joseph","s":1,"c":"Young Adults (PCP)","f":"Vinu Joseph"},{"t":24,"n":"Anissa John","s":1,"c":"Young Adults (PCP)","f":"Sunil John"},{"t":24,"n":"Alvin John","s":1,"c":"Young Adults (PCP)","f":"Sunil John"},{"t":25,"n":"Joel Sajumon","s":1,"c":"Young Adults (PCP)","f":"Sajumon Joy"},{"t":25,"n":"Abigail Sajumon","s":1,"c":"Young Adults (PCP)","f":"Sajumon Joy"},{"t":25,"n":"Elijah Velurethu","s":1,"c":"Young Adults (PCP)","f":"Abi Velurethu"},{"t":25,"n":"Kezia Philip","s":1,"c":"Young Adults (PCP)","f":"Blesson Philip"},{"t":25,"n":"Zach Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"David Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"Rebekah Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"Amelia Jose","s":1,"c":"Young Adults (PCP)","f":"Joseph S Jose"},{"t":25,"n":"Angelia Jose","s":1,"c":"Young Adults (PCP)","f":"Joseph S Jose"},{"t":25,"n":"Ria Kuruvila","s":1,"c":"Young Adults (PCP)","f":"Leena Mathew"},{"t":25,"n":"Rithin Kuruvila","s":1,"c":"Young Adults (PCP)","f":"Leena Mathew"},{"t":25,"n":"Shaina Mathew","s":1,"c":"Young Adults (PCP)","f":"Shaji Mathew"},{"t":26,"n":"Madhuri Dantuluri","s":4,"c":"Boston Church"},{"t":26,"n":"Prince Paul","s":4,"c":"Chicago Pastor"},{"t":26,"n":"Jibu Jacob","s":4,"c":"Boston Church"},{"t":27,"n":"Stephen Karunakaran","s":5,"c":"Boston Church"},{"t":27,"n":"Jacob Alexander","s":5,"c":"Boston Church"},{"t":27,"n":"Lalu Kurian","s":2,"c":"Boston Church"},{"t":28,"n":"Phenny Mathai Philip","s":6,"c":"Boston Church"},{"t":28,"n":"Robin John","s":6,"c":"Boston Church"},{"t":29,"n":"Johnsy Chacko John","s":5,"c":"Boston Church"},{"t":29,"n":"Jobin Saju Idicula","s":5,"c":"Boston Church"},{"t":29,"n":"Robinson Cherian","s":2,"c":"Feba Family Friend"},{"t":30,"n":"Aaron Varghese","s":1,"c":"Young Adults (PCP)","f":"Shinu Varghese"},{"t":30,"n":"Joshua Varghese","s":1,"c":"Young Adults (PCP)","f":"Shinu Varghese"},{"t":30,"n":"Nikita Sunil","s":1,"c":"Young Adults (PCP)","f":"Lyni Sunil"},{"t":30,"n":"Deborah George","s":1,"c":"Young Adults (PCP)","f":"Geomon George"},{"t":30,"n":"Joel Varghese","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Freny Shiju","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Angel Paul","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Benoy Joseph","s":1,"c":"Boston Young Adults"}];
+  // ---------- Planned seating view (editable) ----------
+  var PLAN_ORIG = [{"t":1,"n":"Abi Velurethu","s":2,"c":"PCP Church"},{"t":1,"n":"Blesson Philip","s":2,"c":"PCP Church"},{"t":1,"n":"Jaison Rajan","s":2,"c":"PCP Church"},{"t":1,"n":"Noble Mathew","s":2,"c":"PCP Church"},{"t":1,"n":"Sean Mathew","s":2,"c":"PCP Church"},{"t":1,"n":"Jessen Alancheril","s":2,"c":"Extended Family"},{"t":2,"n":"Lal Chacko","s":2,"c":"Extended Family"},{"t":2,"n":"Sean Philip","s":2,"c":"Extended Family"},{"t":2,"n":"Chacko Pallivathukkal","s":2,"c":"Extended Family"},{"t":2,"n":"Varghese Joseph (Salim)","s":1,"c":"Extended Family"},{"t":2,"n":"Reuben Sam","s":3,"c":"Stephen Friends"},{"t":2,"n":"Bibin Mathew","s":2,"c":"Stephen Friends"},{"t":3,"n":"Philip Varughese","s":3,"c":"Family Friend"},{"t":3,"n":"Bini Mathew","s":1,"c":"Family Friend"},{"t":3,"n":"Sara Samuel","s":2,"c":"Family Friend"},{"t":3,"n":"Benoy Thomas","s":2,"c":"PCP Church"},{"t":3,"n":"Biju Jacob","s":2,"c":"PCP Church"},{"t":3,"n":"Shaji Mathew","s":2,"c":"PCP Church"},{"t":4,"n":"Jacob George","s":2,"c":"Extended Family"},{"t":4,"n":"Sam George","s":2,"c":"Extended Family"},{"t":4,"n":"Belwin Chacko","s":4,"c":"PCP Church"},{"t":4,"n":"Linda George","s":1,"c":"PCP Church"},{"t":4,"n":"Thomas Abraham","s":3,"c":"PCP Church"},{"t":5,"n":"Mathai Joseph","s":3,"c":"Extended Family"},{"t":5,"n":"Annamma Simon","s":3,"c":"Extended Family"},{"t":5,"n":"Sunil John","s":3,"c":"Extended Family"},{"t":5,"n":"Thomas Jacob","s":1,"c":"Extended Family"},{"t":5,"n":"Shawn Jacob","s":2,"c":"Extended Family"},{"t":6,"n":"Jacob Mathew","s":3,"c":"Extended Family"},{"t":6,"n":"John Edavettal","s":3,"c":"Extended Family"},{"t":6,"n":"Blesson Geevarghese","s":3,"c":"PCP Church"},{"t":6,"n":"Jeevan Varghese","s":3,"c":"PCP Church"},{"t":7,"n":"Jefry Aby Kurian","s":2,"c":"PCP Church"},{"t":7,"n":"Amal Mathew","s":1,"c":"PCP Church"},{"t":7,"n":"Mathew Varghese","s":3,"c":"PCP Church"},{"t":7,"n":"Stanley Eapen Cherian","s":3,"c":"PCP Church"},{"t":7,"n":"Wesley Thampy","s":3,"c":"PCP Church"},{"t":8,"n":"Saji Mathew","s":2,"c":"Extended Family"},{"t":8,"n":"Sajee Varkey","s":2,"c":"Extended Family"},{"t":8,"n":"Jolley Philip","s":2,"c":"Extended Family"},{"t":8,"n":"Sajumon Joy","s":2,"c":"Extended Family"},{"t":8,"n":"Alexander Cherian","s":2,"c":"Extended Family"},{"t":8,"n":"Geomon George","s":2,"c":"Family Friend"},{"t":9,"n":"Pastor Mathew D. George","s":2,"c":"Pastor"},{"t":9,"n":"Pastor Cherian P Cherian","s":2,"c":"Pastor"},{"t":9,"n":"Pastor John Mathew","s":2,"c":"Pastor"},{"t":9,"n":"Pastor Sajan Mathew","s":2,"c":"Pastor"},{"t":9,"n":"Anil Kuruvila","s":2,"c":"PCP Church"},{"t":9,"n":"Bosy Chandapillai","s":2,"c":"PCP Church"},{"t":10,"n":"Daniel George","s":2,"c":"PCP Church"},{"t":10,"n":"Finney Abraham","s":2,"c":"PCP Church"},{"t":10,"n":"Geevarghese M George","s":2,"c":"PCP Church"},{"t":10,"n":"Hermise Raju","s":2,"c":"PCP Church"},{"t":10,"n":"Jinto K George","s":2,"c":"PCP Church"},{"t":10,"n":"Johnson B Mathew","s":2,"c":"PCP Church"},{"t":11,"n":"Josen Varghese","s":2,"c":"PCP Church"},{"t":11,"n":"Joseph S Jose","s":2,"c":"PCP Church"},{"t":11,"n":"Joseph Varghese (Pastor)","s":2,"c":"Pastor"},{"t":11,"n":"Kevin McDermott","s":2,"c":"PCP Church"},{"t":11,"n":"Levis Abraham","s":2,"c":"PCP Church"},{"t":11,"n":"Riya Ninan","s":2,"c":"PCP Church"},{"t":12,"n":"Philip P Mathai","s":2,"c":"PCP Church"},{"t":12,"n":"Shogy Madhavasseril Babu","s":2,"c":"PCP Church"},{"t":12,"n":"Robin Sunny","s":2,"c":"PCP Church"},{"t":12,"n":"Roy Mathew","s":2,"c":"PCP Church"},{"t":12,"n":"Shinu Varghese","s":2,"c":"PCP Church"},{"t":12,"n":"Sony Antony","s":2,"c":"PCP Church"},{"t":13,"n":"Koshy Raju","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Kodithoppil","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Varghese","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Varghese","s":2,"c":"PCP Church"},{"t":13,"n":"Jacob Mathew","s":2,"c":"PCP Church"},{"t":13,"n":"Biji Babu","s":2,"c":"PCP Church"},{"t":14,"n":"Stanley George","s":2,"c":"PCP Church"},{"t":14,"n":"Lena Chacko","s":2,"c":"Family Friend"},{"t":14,"n":"Tony Joesph","s":2,"c":"Extended Family"},{"t":14,"n":"Micky Asir","s":2,"c":"Immediate Family"},{"t":14,"n":"Sabu Samuel","s":2,"c":"Boston Church"},{"t":14,"n":"Mathew Thomas","s":1,"c":"Extended Family"},{"t":14,"n":"Bijo Joseph","s":1,"c":"Extended Family"},{"t":15,"n":"Asha Varghese (NY)","s":1,"c":"Family Friend"},{"t":15,"n":"Suja Mathew","s":1,"c":"Extended Family"},{"t":15,"n":"Abhi Patel","s":1,"c":"Stephen Friends"},{"t":15,"n":"Isaac Hong","s":1,"c":"Stephen Friends"},{"t":15,"n":"Shawn Abraham","s":1,"c":"Stephen Friends"},{"t":15,"n":"Cody Liu","s":1,"c":"Stephen Friends"},{"t":15,"n":"Leena Mathew","s":1,"c":"PCP Church"},{"t":15,"n":"Lyni Sunil","s":1,"c":"PCP Church"},{"t":15,"n":"Soni R S","s":1,"c":"PCP Church"},{"t":15,"n":"Eapen Cherian","s":1,"c":"PCP Church"},{"t":15,"n":"Roshini Thomas","s":1,"c":"PCP Church"},{"t":15,"n":"Jose kuruvila","s":1,"c":"PCP Church"},{"t":16,"n":"Mathew Philip (JoyKutty)","s":3,"c":"Boston Church"},{"t":16,"n":"Mathew Tharakan","s":3,"c":"Boston Church"},{"t":16,"n":"Fredi David","s":2,"c":"Feba Family"},{"t":16,"n":"Pr Bethel Johnson","s":2,"c":"Boston Church"},{"t":16,"n":"Lance Daniel","s":2,"c":"Boston Church"},{"t":17,"n":"Usha Jose","s":1,"c":"PCP Church"},{"t":17,"n":"Aneena Alex","s":1,"c":"Family Friend"},{"t":17,"n":"Rejini Abraham","s":1,"c":"Family Friend"},{"t":17,"n":"Varughese m mathew","s":1,"c":"Family Friend"},{"t":17,"n":"Anil Mathew","s":1,"c":"Immediate Family"},{"t":17,"n":"Rincy Roy","s":1,"c":"Immediate Family"},{"t":17,"n":"Roslyn Roy","s":1,"c":"Immediate Family"},{"t":17,"n":"Dany Kevin Johnson (Pastor)","s":1,"c":"Chicago"},{"t":17,"n":"Bipin Zachariah","s":1,"c":"Boston Church"},{"t":17,"n":"Febin Fredi","s":1,"c":"Feba Family"},{"t":18,"n":"Abraham Cherian","s":2,"c":"Immediate Family"},{"t":18,"n":"Vinu Joseph","s":2,"c":"Immediate Family"},{"t":18,"n":"Roshan Joseph","s":4,"c":"Immediate Family"},{"t":18,"n":"Sanju Zachariah","s":4,"c":"Immediate Family"},{"t":19,"n":"Prasad Abraham","s":5,"c":"Immediate Family"},{"t":19,"n":"Cherian Abraham","s":4,"c":"Immediate Family"},{"t":19,"n":"Jenson Jen Jacob","s":3,"c":"Immediate Family"},{"t":20,"n":"Mercy Mathew","s":3,"c":"Immediate Family"},{"t":20,"n":"Roy Varghese","s":2,"c":"Immediate Family"},{"t":20,"n":"Rajan (Mathew)","s":1,"c":"Immediate Family"},{"t":20,"n":"Shibi George","s":3,"c":"Immediate Family"},{"t":20,"n":"Johnson Zachariah","s":2,"c":"Immediate Family"},{"t":20,"n":"Pheba Johnson","s":1,"c":"Immediate Family"},{"t":24,"n":"Jason Daniel","s":1,"c":"PCP Church"},{"t":24,"n":"Justin Daniel","s":1,"c":"PCP Church"},{"t":24,"n":"Jaison Johnson","s":1,"c":"PCP Church"},{"t":24,"n":"Josh Varghese (JV)","s":1,"c":"PCP Church"},{"t":24,"n":"Justin Sunil","s":1,"c":"PCP Church"},{"t":24,"n":"Delvin Cherian","s":2,"c":"Boston Young Adults"},{"t":24,"n":"Reshma Joseph","s":1,"c":"Boston Young Adults"},{"t":24,"n":"Benjamin George","s":1,"c":"Boston Young Adults"},{"t":24,"n":"Aaliyah Joseph","s":1,"c":"Young Adults (PCP)","f":"Vinu Joseph"},{"t":24,"n":"Anissa John","s":1,"c":"Young Adults (PCP)","f":"Sunil John"},{"t":24,"n":"Alvin John","s":1,"c":"Young Adults (PCP)","f":"Sunil John"},{"t":25,"n":"Joel Sajumon","s":1,"c":"Young Adults (PCP)","f":"Sajumon Joy"},{"t":25,"n":"Abigail Sajumon","s":1,"c":"Young Adults (PCP)","f":"Sajumon Joy"},{"t":25,"n":"Elijah Velurethu","s":1,"c":"Young Adults (PCP)","f":"Abi Velurethu"},{"t":25,"n":"Kezia Philip","s":1,"c":"Young Adults (PCP)","f":"Blesson Philip"},{"t":25,"n":"Zach Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"David Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"Rebekah Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"Amelia Jose","s":1,"c":"Young Adults (PCP)","f":"Joseph S Jose"},{"t":25,"n":"Angelia Jose","s":1,"c":"Young Adults (PCP)","f":"Joseph S Jose"},{"t":25,"n":"Ria Kuruvila","s":1,"c":"Young Adults (PCP)","f":"Leena Mathew"},{"t":25,"n":"Rithin Kuruvila","s":1,"c":"Young Adults (PCP)","f":"Leena Mathew"},{"t":25,"n":"Shaina Mathew","s":1,"c":"Young Adults (PCP)","f":"Shaji Mathew"},{"t":26,"n":"Madhuri Dantuluri","s":4,"c":"Boston Church"},{"t":26,"n":"Prince Paul","s":4,"c":"Chicago Pastor"},{"t":26,"n":"Jibu Jacob","s":4,"c":"Boston Church"},{"t":27,"n":"Stephen Karunakaran","s":5,"c":"Boston Church"},{"t":27,"n":"Jacob Alexander","s":5,"c":"Boston Church"},{"t":27,"n":"Lalu Kurian","s":2,"c":"Boston Church"},{"t":28,"n":"Phenny Mathai Philip","s":6,"c":"Boston Church"},{"t":28,"n":"Robin John","s":6,"c":"Boston Church"},{"t":29,"n":"Johnsy Chacko John","s":5,"c":"Boston Church"},{"t":29,"n":"Jobin Saju Idicula","s":5,"c":"Boston Church"},{"t":29,"n":"Robinson Cherian","s":2,"c":"Feba Family Friend"},{"t":30,"n":"Aaron Varghese","s":1,"c":"Young Adults (PCP)","f":"Shinu Varghese"},{"t":30,"n":"Joshua Varghese","s":1,"c":"Young Adults (PCP)","f":"Shinu Varghese"},{"t":30,"n":"Nikita Sunil","s":1,"c":"Young Adults (PCP)","f":"Lyni Sunil"},{"t":30,"n":"Deborah George","s":1,"c":"Young Adults (PCP)","f":"Geomon George"},{"t":30,"n":"Joel Varghese","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Freny Shiju","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Angel Paul","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Benoy Joseph","s":1,"c":"Boston Young Adults"}];
+  var PLAN_KEY = 'sf_seating_plan_v1';
+  var PLAN = [];
+  var planRemoteOK = null;   // null = unknown, true/false after first attempt
+  var planSelected = null;
+  var planDragId = null;
+  var planFocus = null;
+  var planUndo = [];
+  var planSaveTimer = null;
+  var editingId = null;
 
   var planFloorplan = document.getElementById('planFloorplan');
   var planGuestList = document.getElementById('planGuestList');
+  var planUnseated = document.getElementById('planUnseated');
   var planTableGrid = document.getElementById('planTableGrid');
   var planStats = document.getElementById('planStats');
   var planSearch = document.getElementById('planSearch');
-  var planFocus = null;
+  var planStatus = document.getElementById('planStatus');
+  var planHint = document.getElementById('planHint');
+
+  function clonePlan(a){ return JSON.parse(JSON.stringify(a)); }
+  function origPlan(){
+    return clonePlan(PLAN_ORIG).map(function(g, i){ g.id = 'p' + i; return g; });
+  }
+  function newId(){ return 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+  function findG(id){ return PLAN.find(function(g){ return g.id === id; }); }
+  function tCount(t){
+    return PLAN.filter(function(g){ return g.t === t; }).reduce(function(s, g){ return s + g.s; }, 0);
+  }
+  function setPlanStatus(msg, warn){
+    planStatus.textContent = msg;
+    planStatus.classList.toggle('warn', !!warn);
+  }
+
+  function savePlanNow(){
+    try { localStorage.setItem(PLAN_KEY, JSON.stringify(PLAN)); } catch(e){}
+    if (supabaseClient && planRemoteOK !== false) {
+      supabaseClient.from('seating_plan')
+        .upsert({ id: 'main', data: PLAN, updated_at: new Date().toISOString() })
+        .then(function(res){
+          if (res.error) {
+            planRemoteOK = false;
+            setPlanStatus('Saved on this device only (run seating_plan.sql in Supabase to sync)', true);
+          } else {
+            planRemoteOK = true;
+            setPlanStatus('Saved & synced');
+          }
+        }, function(){
+          planRemoteOK = false;
+          setPlanStatus('Saved on this device only', true);
+        });
+    } else {
+      setPlanStatus('Saved on this device only (run seating_plan.sql in Supabase to sync)', true);
+    }
+  }
+  var planSavePending = false;
+  function savePlan(){
+    clearTimeout(planSaveTimer);
+    planSavePending = true;
+    planSaveTimer = setTimeout(function(){ planSavePending = false; savePlanNow(); }, 350);
+  }
+  window.addEventListener('pagehide', function(){
+    if (planSavePending) { planSavePending = false; clearTimeout(planSaveTimer); try { localStorage.setItem(PLAN_KEY, JSON.stringify(PLAN)); } catch(e){} }
+  });
+  function snapshot(){
+    planUndo.push(JSON.stringify(PLAN));
+    if (planUndo.length > 30) planUndo.shift();
+  }
+  function changed(){
+    savePlan();
+    renderPlan();
+  }
+
+  async function loadPlan(){
+    var loaded = null;
+    if (supabaseClient) {
+      try {
+        var res = await supabaseClient.from('seating_plan').select('data').eq('id', 'main').maybeSingle();
+        if (res.error) { planRemoteOK = false; }
+        else { planRemoteOK = true; if (res.data && Array.isArray(res.data.data)) loaded = res.data.data; }
+      } catch(e){ planRemoteOK = false; }
+    }
+    if (!loaded) {
+      try {
+        var raw = localStorage.getItem(PLAN_KEY);
+        if (raw) { var arr = JSON.parse(raw); if (Array.isArray(arr)) loaded = arr; }
+      } catch(e){}
+    }
+    PLAN = loaded || origPlan();
+    PLAN.forEach(function(g){ if (!g.id) g.id = newId(); });
+    setPlanStatus(planRemoteOK ? 'Synced' : 'Saved on this device only', !planRemoteOK);
+    renderPlan();
+  }
+
+  function movePlan(id, t, silent){
+    var g = findG(id);
+    if (!g) return;
+    if (g.t === t) return;
+    snapshot();
+    g.t = t;
+    planSelected = null;
+    changed();
+    if (!silent) {
+      if (t === null) { showToast(g.n + ' moved to Unseated.'); }
+      else {
+        var c = tCount(t);
+        showToast(g.n + ' → Table ' + t + (c > MAX_SEATS ? ' (now ' + c + '/' + MAX_SEATS + ' — over capacity)' : ''));
+      }
+    }
+  }
 
   function planByTable(){
     var m = {};
     for (var t = 1; t <= TABLE_COUNT; t++) m[t] = [];
-    PLAN.forEach(function(g){ m[g.t].push(g); });
+    PLAN.forEach(function(g){ if (g.t && m[g.t]) m[g.t].push(g); });
     return m;
+  }
+
+  function wireDrag(el, id){
+    el.setAttribute('draggable', 'true');
+    el.addEventListener('dragstart', function(e){
+      planDragId = id;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'plan:' + id);
+      el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', function(){
+      planDragId = null;
+      el.classList.remove('dragging');
+    });
+  }
+  function wireDrop(el, onDrop){
+    el.addEventListener('dragover', function(e){
+      if (!planDragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', function(){ el.classList.remove('drag-over'); });
+    el.addEventListener('drop', function(e){
+      if (!planDragId) return;
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      var id = planDragId;
+      planDragId = null;
+      onDrop(id);
+    });
+  }
+
+  function guestRowHtml(g){
+    return '<span>' + escapeHtml(g.n) + (g.s > 1 ? ' (' + g.s + ')' : '') + '</span>' +
+      '<span class="gc-count">' + (g.t ? 'Table ' + g.t : 'Unseated') + '</span>';
   }
 
   function renderPlan(){
     var byTable = planByTable();
     var q = planSearch.value.trim().toLowerCase();
-    var matches = q ? PLAN.filter(function(g){
-      return g.n.toLowerCase().indexOf(q) !== -1 || ('table ' + g.t) === q || String(g.t) === q;
-    }) : [];
+    function matchesQ(g){
+      return !q || g.n.toLowerCase().indexOf(q) !== -1 || String(g.t) === q || ('table ' + g.t) === q;
+    }
+    var matches = q ? PLAN.filter(matchesQ) : [];
     var matchTables = {};
-    matches.forEach(function(g){ matchTables[g.t] = true; });
+    matches.forEach(function(g){ if (g.t) matchTables[g.t] = true; });
     if (planFocus) matchTables[planFocus] = true;
     var anyMatch = Object.keys(matchTables).length > 0;
 
-    var total = PLAN.reduce(function(s, g){ return s + g.s; }, 0);
-    var used = 0;
-    for (var t = 1; t <= TABLE_COUNT; t++) if (byTable[t].length) used++;
+    var placed = PLAN.filter(function(g){ return g.t; });
+    var unseated = PLAN.filter(function(g){ return !g.t; });
+    var placedGuests = placed.reduce(function(s, g){ return s + g.s; }, 0);
+    var unGuests = unseated.reduce(function(s, g){ return s + g.s; }, 0);
+    var used = 0, overCount = 0;
+    for (var t = 1; t <= TABLE_COUNT; t++) {
+      if (byTable[t].length) used++;
+      if (tCount(t) > MAX_SEATS) overCount++;
+    }
     planStats.innerHTML = [
       {n: PLAN.length, l:'Parties / Groups'},
-      {n: total, l:'Guests Placed'},
+      {n: placedGuests, l:'Guests Seated'},
+      {n: unGuests, l:'Unseated'},
       {n: used + ' / ' + TABLE_COUNT, l:'Tables Used'},
-      {n: TABLE_COUNT - used, l:'Tables Open'}
+      {n: overCount, l:'Over Capacity'}
     ].map(function(s){
       return '<div class="stat"><div class="stat-num">' + s.n + '</div><div class="stat-label">' + s.l + '</div></div>';
     }).join('');
 
-    // guest finder list
-    var list = q ? matches : PLAN.slice().sort(function(a, b){ return a.n.localeCompare(b.n); });
-    planGuestList.innerHTML = list.length ? list.map(function(g){
-      return '<button type="button" class="guest-card" style="cursor:pointer" data-table="' + g.t + '">' +
-        '<span>' + escapeHtml(g.n) + '</span><span class="gc-count">Table ' + g.t + '</span></button>';
-    }).join('') : '<p class="empty-note">No matches.</p>';
-    Array.prototype.forEach.call(planGuestList.querySelectorAll('.guest-card'), function(btn){
-      btn.addEventListener('click', function(){
-        planFocus = parseInt(btn.getAttribute('data-table'), 10);
-        renderPlan();
-        var card = planTableGrid.querySelector('[data-card="' + planFocus + '"]');
-        if (card && card.scrollIntoView) card.scrollIntoView({behavior:'smooth', block:'center'});
+    planHint.textContent = planSelected && findG(planSelected)
+      ? 'Now click a table to seat ' + findG(planSelected).n + '.'
+      : 'Drag a name onto a table, or click one then click a table.';
+
+    // ---- left lists ----
+    function listHtml(arr){
+      return arr.map(function(g){
+        return '<div class="pg-row" data-id="' + g.id + '">' +
+          '<button type="button" class="guest-card' + (g.id === planSelected ? ' selected' : '') + '" data-pick="' + g.id + '">' + guestRowHtml(g) + '</button>' +
+          '<button type="button" class="pg-edit" data-edit="' + g.id + '" title="Edit">&#9998;</button></div>';
+      }).join('');
+    }
+    var unList = unseated.filter(matchesQ);
+    planUnseated.innerHTML = unList.length ? listHtml(unList) : '<p class="empty-note">' + (unseated.length ? 'No matches.' : 'Everyone is seated. Drop a name here to unseat it.') + '</p>';
+    document.getElementById('planUnCount').textContent = unGuests + ' guests';
+    var allList = PLAN.filter(function(g){ return g.t; }).filter(matchesQ).sort(function(a, b){ return a.n.localeCompare(b.n); });
+    planGuestList.innerHTML = allList.length ? listHtml(allList) : '<p class="empty-note">No matches.</p>';
+    document.getElementById('planAllCount').textContent = placed.length + ' parties';
+
+    [planUnseated, planGuestList].forEach(function(box){
+      Array.prototype.forEach.call(box.querySelectorAll('.pg-row'), function(row){
+        var id = row.getAttribute('data-id');
+        var pick = row.querySelector('[data-pick]');
+        wireDrag(pick, id);
+        pick.addEventListener('click', function(){
+          var g = findG(id);
+          planSelected = (planSelected === id) ? null : id;
+          planFocus = (planSelected && g && g.t) ? g.t : null;
+          renderPlan();
+          if (planFocus) {
+            var card = planTableGrid.querySelector('[data-card="' + planFocus + '"]');
+            if (card && card.scrollIntoView) card.scrollIntoView({behavior:'smooth', block:'center'});
+          }
+        });
+        row.querySelector('[data-edit]').addEventListener('click', function(){ openPlanModal(id); });
       });
     });
+    wireDrop(planUnseated, function(id){ movePlan(id, null); });
 
-    // floor plan
+    // ---- floor plan ----
     planFloorplan.innerHTML = '';
     buildFloorplanChrome(planFloorplan);
+    var selG = planSelected ? findG(planSelected) : null;
     Object.keys(TABLE_POS).forEach(function(key){
       var num = parseInt(key, 10);
       var pos = TABLE_POS[key];
       var guests = byTable[num];
-      var count = guests.reduce(function(s, g){ return s + g.s; }, 0);
+      var count = tCount(num);
       var el = document.createElement('div');
       el.className = 'fp-table plan ' + tableStatusClass(count) +
-        (anyMatch ? (matchTables[num] ? ' match' : ' dim') : '');
+        (anyMatch ? (matchTables[num] ? ' match' : ' dim') : '') +
+        (selG && selG.t !== num ? ' selectable' : '');
       el.style.left = pos[0] + '%';
       el.style.top = pos[1] + '%';
       el.innerHTML = '<span class="fp-num">' + num + '</span><span class="fp-fill">' + count + '/' + MAX_SEATS + '</span>';
       el.title = 'Table ' + num + ': ' + count + ' planned' + (guests.length ? ' — ' + guests.map(function(g){ return g.n; }).join(', ') : '');
-      el.addEventListener('click', function(n){
-        return function(){
-          planFocus = (planFocus === n) ? null : n;
-          renderPlan();
-          var card = planTableGrid.querySelector('[data-card="' + n + '"]');
-          if (card && card.scrollIntoView) card.scrollIntoView({behavior:'smooth', block:'center'});
-        };
-      }(num));
+      el.addEventListener('click', function(){
+        if (planSelected) { movePlan(planSelected, num); return; }
+        planFocus = (planFocus === num) ? null : num;
+        renderPlan();
+        var card = planTableGrid.querySelector('[data-card="' + num + '"]');
+        if (card && card.scrollIntoView) card.scrollIntoView({behavior:'smooth', block:'center'});
+      });
+      wireDrop(el, function(id){ movePlan(id, num); });
       planFloorplan.appendChild(el);
     });
 
-    // table cards
+    // ---- table cards ----
     planTableGrid.innerHTML = '';
     for (var tn = 1; tn <= TABLE_COUNT; tn++) {
-      var gs = byTable[tn];
-      var c = gs.reduce(function(s, g){ return s + g.s; }, 0);
-      var cls = tableStatusClass(c);
-      var cc = cls === 'empty' ? '' : (cls === 'over' ? 'over' : (cls === 'under' ? 'under' : 'full'));
-      var card = document.createElement('div');
-      card.className = 'table-card' + (matchTables[tn] ? ' focus' : '');
-      card.setAttribute('data-card', tn);
-      var body = gs.length ? gs.map(function(g){
-        var ya = g.c === 'Young Adults (PCP)';
-        return '<div class="tc-guest' + (ya ? ' ya' : '') + '"><span>' + escapeHtml(g.n) + ' (' + g.s + ')' +
-          (g.f ? '<span class="tc-cat">from ' + escapeHtml(g.f) + '&#39;s family</span>' : '') + '</span></div>';
-      }).join('') : '<div class="tc-empty-note">Open</div>';
-      card.innerHTML = '<div class="table-card-head"><span class="tc-num">Table ' + tn + '</span><span class="tc-count ' + cc + '">' + c + ' / ' + MAX_SEATS + '</span></div>' +
-        '<div class="tc-guests">' + body + '</div>';
-      planTableGrid.appendChild(card);
+      (function(tn){
+        var gs = byTable[tn];
+        var c = tCount(tn);
+        var cls = tableStatusClass(c);
+        var cc = cls === 'empty' ? '' : (cls === 'over' ? 'over' : (cls === 'under' ? 'under' : 'full'));
+        var card = document.createElement('div');
+        card.className = 'table-card' + (matchTables[tn] ? ' focus' : '');
+        card.setAttribute('data-card', tn);
+        var body = gs.length ? gs.map(function(g){
+          var ya = g.c === 'Young Adults (PCP)';
+          return '<div class="tc-guest pg' + (ya ? ' ya' : '') + '" data-id="' + g.id + '">' +
+            '<button type="button" class="pg-name" data-edit="' + g.id + '">' + escapeHtml(g.n) + ' (' + g.s + ')' +
+            (g.f ? '<span class="tc-cat">from ' + escapeHtml(g.f) + '&#39;s family</span>' : '') + '</button></div>';
+        }).join('') : '<div class="tc-empty-note">Open &mdash; drop a guest here</div>';
+        card.innerHTML = '<div class="table-card-head"><span class="tc-num">Table ' + tn + '</span><span class="tc-count ' + cc + '">' + c + ' / ' + MAX_SEATS + '</span></div>' +
+          '<div class="tc-guests">' + body + '</div>';
+        Array.prototype.forEach.call(card.querySelectorAll('.tc-guest'), function(row){
+          wireDrag(row, row.getAttribute('data-id'));
+        });
+        Array.prototype.forEach.call(card.querySelectorAll('[data-edit]'), function(b){
+          b.addEventListener('click', function(){ openPlanModal(b.getAttribute('data-edit')); });
+        });
+        wireDrop(card, function(id){ movePlan(id, tn); });
+        planTableGrid.appendChild(card);
+      })(tn);
     }
   }
+
+  // ---- add / edit modal ----
+  var planModal = document.getElementById('planModal');
+  var pmName = document.getElementById('pmName');
+  var pmSize = document.getElementById('pmSize');
+  var pmTable = document.getElementById('pmTable');
+  var pmCat = document.getElementById('pmCat');
+  (function buildTableOptions(){
+    var o = '<option value="">Unseated</option>';
+    for (var t = 1; t <= TABLE_COUNT; t++) o += '<option value="' + t + '">Table ' + t + '</option>';
+    pmTable.innerHTML = o;
+  })();
+
+  function openPlanModal(id){
+    editingId = id || null;
+    var g = id ? findG(id) : null;
+    document.getElementById('pmTitle').textContent = g ? 'Edit guest' : 'Add guest / party';
+    document.getElementById('pmDelete').style.display = g ? '' : 'none';
+    pmName.value = g ? g.n : '';
+    pmSize.value = g ? g.s : 1;
+    pmTable.value = g && g.t ? String(g.t) : '';
+    pmCat.value = g ? (g.c || '') : '';
+    planModal.hidden = false;
+    setTimeout(function(){ pmName.focus(); }, 30);
+  }
+  function closePlanModal(){ planModal.hidden = true; editingId = null; }
+
+  document.getElementById('pmCancel').addEventListener('click', closePlanModal);
+  planModal.addEventListener('click', function(e){ if (e.target === planModal) closePlanModal(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !planModal.hidden) closePlanModal(); });
+  document.getElementById('pmSave').addEventListener('click', function(){
+    var name = pmName.value.trim();
+    var size = parseInt(pmSize.value, 10);
+    if (!name) { showToast('Enter a name first.'); return; }
+    if (!size || size < 1) size = 1;
+    var t = pmTable.value ? parseInt(pmTable.value, 10) : null;
+    var cat = pmCat.value.trim();
+    snapshot();
+    if (editingId) {
+      var g = findG(editingId);
+      if (g) { g.n = name; g.s = size; g.t = t; g.c = cat || g.c || ''; if (cat !== (g.c || '')) g.c = cat; }
+    } else {
+      PLAN.push({ id: newId(), t: t, n: name, s: size, c: cat || 'Added' });
+    }
+    var over = t && tCount(t) > MAX_SEATS;
+    closePlanModal();
+    changed();
+    showToast(name + ' saved' + (over ? ' — Table ' + t + ' is over capacity' : '') + '.');
+  });
+  document.getElementById('pmDelete').addEventListener('click', function(){
+    var g = editingId ? findG(editingId) : null;
+    if (!g) return;
+    snapshot();
+    PLAN = PLAN.filter(function(x){ return x.id !== g.id; });
+    closePlanModal();
+    changed();
+    showToast(g.n + ' deleted. Use Undo to bring back.');
+  });
+  [pmName, pmSize, pmCat].forEach(function(inp){
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') document.getElementById('pmSave').click(); });
+  });
+
+  document.getElementById('planAddBtn').addEventListener('click', function(){ openPlanModal(null); });
+  document.getElementById('planUndoBtn').addEventListener('click', function(){
+    if (!planUndo.length) { showToast('Nothing to undo.'); return; }
+    PLAN = JSON.parse(planUndo.pop());
+    planSelected = null;
+    changed();
+    showToast('Undone.');
+  });
+  document.getElementById('planResetBtn').addEventListener('click', function(){
+    if (!window.confirm('Reset the planned seating to the original arrangement? Your edits will be replaced (you can Undo).')) return;
+    snapshot();
+    PLAN = origPlan();
+    planSelected = null;
+    changed();
+    showToast('Plan reset to the original arrangement.');
+  });
+
+  function download(name, text, type){
+    var blob = new Blob([text], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  document.getElementById('planJsonBtn').addEventListener('click', function(){
+    download('seating-plan-backup.json', JSON.stringify(PLAN, null, 1), 'application/json');
+  });
+  var planImportFile = document.getElementById('planImportFile');
+  document.getElementById('planImportBtn').addEventListener('click', function(){ planImportFile.click(); });
+  planImportFile.addEventListener('change', function(){
+    var f = planImportFile.files && planImportFile.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try {
+        var arr = JSON.parse(reader.result);
+        if (!Array.isArray(arr)) throw new Error('bad');
+        snapshot();
+        PLAN = arr.map(function(g){
+          return { id: g.id || newId(), t: g.t ? parseInt(g.t, 10) : null, n: String(g.n || 'Guest'), s: parseInt(g.s, 10) || 1, c: g.c || '', f: g.f };
+        });
+        changed();
+        showToast('Plan restored from backup.');
+      } catch(e){ showToast('That file is not a valid plan backup.'); }
+      planImportFile.value = '';
+    };
+    reader.readAsText(f);
+  });
 
   var liveView = document.getElementById('liveView');
   var planView = document.getElementById('planView');
@@ -793,20 +1135,17 @@
 
   document.getElementById('planExportBtn').addEventListener('click', function(){
     var nl = String.fromCharCode(10);
-    var lines = ['Table,Name,Guests,Category'];
-    PLAN.forEach(function(g){
-      lines.push([g.t, '"' + g.n.replace(/"/g,'""') + '"', g.s, '"' + g.c.replace(/"/g,'""') + '"'].join(','));
+    var lines = ['Table,Name,Guests,Group'];
+    var sorted = PLAN.slice().sort(function(a, b){ return (a.t || 999) - (b.t || 999); });
+    sorted.forEach(function(g){
+      lines.push([g.t || 'Unseated', '"' + g.n.replace(/"/g,'""') + '"', g.s, '"' + String(g.c || '').replace(/"/g,'""') + '"'].join(','));
     });
-    var blob = new Blob([lines.join(nl)], { type: 'text/csv' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = 'planned-seating.csv';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    download('planned-seating.csv', lines.join(nl), 'text/csv');
   });
 
   if (location.hash === '#plan') setView('plan');
 
+  loadPlan();
   loadData();
 })();
 </script>
