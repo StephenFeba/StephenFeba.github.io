@@ -133,11 +133,12 @@
   }
   .fp-room.bar{background:#ece6f7;}
   .fp-room.dancefloor{background:#f7f5f2; font-size:12px; letter-spacing:0.08em;}
+  .fp-room.head-table{background:#fdfcfb; font-size:9px; border-style:dashed;}
   .fp-label{
     position:absolute; font-family:'Space Mono',monospace; font-size:9px; color:#9a9284; letter-spacing:0.04em;
   }
   .fp-table{
-    position:absolute; width:7.2%; aspect-ratio:1/1; border-radius:50%;
+    position:absolute; width:4.4%; aspect-ratio:1/1; border-radius:50%;
     border:1.5px solid var(--wine); background:#f1ecfa;
     display:flex; align-items:center; justify-content:center; flex-direction:column;
     cursor:pointer; transform:translate(-50%,-50%);
@@ -145,8 +146,8 @@
     transition:transform .12s, box-shadow .12s;
   }
   .fp-table:hover{transform:translate(-50%,-50%) scale(1.08); box-shadow:0 4px 14px rgba(32,38,92,0.3); z-index:5;}
-  .fp-table .fp-num{font-size:clamp(9px,1.4vw,13px); line-height:1;}
-  .fp-table .fp-fill{font-family:'Space Mono',monospace; font-size:clamp(6px,0.9vw,9px); margin-top:1px;}
+  .fp-table .fp-num{font-size:clamp(8px,1.15vw,14px); line-height:1;}
+  .fp-table .fp-fill{font-family:'Space Mono',monospace; font-size:clamp(5px,0.7vw,9px); margin-top:1px;}
   .fp-table.empty{background:#f1ecfa; border-color:var(--line);}
   .fp-table.under{background:#fdf3e0; border-color:var(--warn);}
   .fp-table.full{background:#e7f1ea; border-color:var(--good);}
@@ -200,6 +201,20 @@
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
+  .view-tabs{display:flex; justify-content:center; gap:0; margin:0 0 22px;}
+  .view-tab{
+    font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    padding:10px 20px; background:var(--paper); color:var(--wine); border:1px solid var(--wine); cursor:pointer;
+  }
+  .view-tab + .view-tab{border-left:none;}
+  .view-tab.active{background:var(--wine); color:var(--paper);}
+  .plan-note{font-size:13px; font-style:italic; color:#6a6255; text-align:center; max-width:760px; margin:-8px auto 18px;}
+  .fp-table.plan{cursor:pointer;}
+  .fp-table.match{box-shadow:0 0 0 4px var(--gold), 0 6px 18px rgba(32,38,92,0.4); transform:translate(-50%,-50%) scale(1.18); z-index:6;}
+  .fp-table.dim{opacity:0.35;}
+  .table-card.focus{border-color:var(--wine); box-shadow:0 0 0 2px var(--gold);}
+  .tc-guest .tc-cat{font-family:'Space Mono',monospace; font-size:9px; color:#8a8274; display:block;}
+  .tc-guest.ya span:first-child{font-style:italic;}
   .state-msg{text-align:center; font-style:italic; color:#6a6255; padding:30px 0;}
 </style>
 </head>
@@ -216,6 +231,12 @@
     <div class="subhead">Westmount Country Club &middot; Grand Ballroom &middot; 33 tables &middot; 10&ndash;12 per table</div>
   </header>
 
+  <div class="view-tabs" role="tablist">
+    <button type="button" class="view-tab active" id="tabLive" role="tab">Live RSVPs</button>
+    <button type="button" class="view-tab" id="tabPlan" role="tab">Planned Seating</button>
+  </div>
+
+  <div id="liveView">
   <div class="stats" id="stats"></div>
 
   <div class="toolbar-row">
@@ -262,6 +283,39 @@
       </div>
     </div>
   </div>
+  </div><!-- /liveView -->
+
+  <div id="planView" hidden>
+    <p class="plan-note">Draft arrangement built from the full invite list (318 guests): Immediate Family at 18&ndash;20, Feba &amp; Boston guests at 16 and 26&ndash;29, and PCP / young adults seated together at 24, 25 and 30. Read-only &mdash; use Live RSVPs to seat confirmed guests.</p>
+    <div class="stats" id="planStats"></div>
+    <div class="toolbar-row">
+      <button class="btn secondary" id="planExportBtn">Export Plan (CSV)</button>
+    </div>
+    <div class="layout">
+      <div class="panel">
+        <h2>Find a Guest</h2>
+        <div class="search-row">
+          <input type="text" id="planSearch" placeholder="Search name or table&hellip;" autocomplete="off">
+        </div>
+        <div class="guest-list" id="planGuestList"></div>
+      </div>
+      <div>
+        <div class="floorplan-outer">
+          <div class="floorplan" id="planFloorplan"></div>
+          <div class="legend">
+            <span><i class="i-empty"></i> Empty</span>
+            <span><i class="i-under"></i> Under 10</span>
+            <span><i class="i-full"></i> 10&ndash;12</span>
+            <span><i class="i-over"></i> Over 12</span>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Planned Table Details</h2>
+          <div class="table-grid" id="planTableGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -280,20 +334,21 @@
   var MIN_SEATS = 10;
   var MAX_SEATS = 12;
 
-  // Approximate positions (percent of floorplan box) matching the venue's layout photo
+  // Precise positions (percent of floorplan box), extracted via pixel-level circle
+  // detection against the venue's digital floor plan reference image.
   var TABLE_POS = {
-    1:[37.3,24.6], 2:[43.3,24.6], 3:[49.1,24.6],
-    7:[34.5,30.2], 6:[40.4,30.2], 5:[46.2,30.2], 4:[52.0,30.2],
-    8:[33.0,36.8], 9:[38.3,36.8], 10:[43.6,36.8], 11:[49.0,36.8], 12:[54.3,36.8],
-    15:[33.8,43.9], 14:[44.0,43.9], 13:[53.3,43.9],
-    16:[26.3,50.6], 18:[40.4,50.6], 20:[51.2,50.6],
-    17:[35.0,53.3], 19:[45.8,55.7],
-    21:[56.9,54.4], 22:[63.3,53.9], 23:[69.5,55.0],
-    25:[61.5,59.9], 24:[67.6,59.9],
-    28:[20.1,58.3], 27:[26.3,57.8], 26:[31.7,58.3],
-    29:[26.0,65.5],
-    30:[62.0,79.8], 31:[68.4,79.8],
-    33:[65.2,87.0], 32:[72.5,87.0]
+    1:[37.6,24.7], 2:[43.3,24.7], 3:[49.2,24.7],
+    7:[34.7,30.2], 6:[40.5,30.2], 5:[46.3,30.2], 4:[52.0,30.2],
+    8:[33.0,36.8], 9:[38.4,36.9], 10:[43.8,36.8], 11:[49.2,36.8], 12:[54.1,36.9],
+    15:[33.8,44.1], 14:[44.2,44.1], 13:[53.3,44.0],
+    16:[26.4,50.7], 18:[40.4,50.7], 20:[51.2,50.6],
+    17:[35.1,53.4], 19:[45.8,55.6],
+    21:[57.0,54.5], 22:[63.7,53.9], 23:[69.9,55.0],
+    25:[61.5,60.1], 24:[67.8,60.0],
+    28:[20.2,58.4], 27:[26.4,57.7], 26:[31.8,58.4],
+    29:[25.9,65.6],
+    30:[62.0,79.9], 31:[68.6,79.9],
+    33:[65.3,87.1], 32:[72.3,87.1]
   };
 
   var allRows = [];
@@ -351,22 +406,25 @@
     }
   }
 
-  function buildFloorplanChrome(){
+  function buildFloorplanChrome(target){
+    target = target || floorplan;
     var chrome = [
-      {cls:'fp-room', style:'left:19.4%; top:24.7%; width:6.6%; height:8.6%;', text:'Ladies<br>Room'},
-      {cls:'fp-room', style:'left:19.4%; top:33.3%; width:6.6%; height:8.6%;', text:'Mens<br>Room'},
-      {cls:'fp-room bar', style:'left:8.9%; top:48.3%; width:9.3%; height:4.2%;', text:'BAR'},
-      {cls:'fp-room bar', style:'left:8.9%; top:86.1%; width:9.3%; height:4.3%;', text:'BAR'},
-      {cls:'fp-room', style:'left:19.4%; top:77.3%; width:10.7%; height:5.1%;', text:'BAND'},
-      {cls:'fp-room dancefloor', style:'left:32.6%; top:62.6%; width:24.0%; height:23.7%;', text:'DANCE FLOOR'},
-      {cls:'fp-room', style:'left:40.5%; top:81.3%; width:8.3%; height:3.7%; font-size:9px;', text:'B&amp;G'}
+      {cls:'fp-room', style:'left:19.3%; top:24.6%; width:6.7%; height:10.0%;', text:'Ladies<br>Room'},
+      {cls:'fp-room', style:'left:19.3%; top:34.7%; width:6.7%; height:7.8%;', text:'Mens<br>Room'},
+      {cls:'fp-room bar', style:'left:8.3%; top:46.7%; width:10.5%; height:6.5%;', text:'BAR'},
+      {cls:'fp-room bar', style:'left:9.0%; top:86.0%; width:9.1%; height:5.5%;', text:'BAR'},
+      {cls:'fp-room', style:'left:19.3%; top:77.1%; width:10.9%; height:5.7%;', text:'BAND'},
+      {cls:'fp-room dancefloor', style:'left:32.5%; top:62.7%; width:24.5%; height:23.9%;', text:'DANCE FLOOR'},
+      {cls:'fp-room', style:'left:40.4%; top:81.0%; width:8.4%; height:4.3%; font-size:9px;', text:'B&amp;G'},
+      {cls:'fp-room head-table', style:'left:80.6%; top:47.3%; width:9.0%; height:7.8%;', text:'Head<br>Table'},
+      {cls:'fp-room head-table', style:'left:80.6%; top:75.1%; width:9.0%; height:7.8%;', text:'Head<br>Table'}
     ];
     chrome.forEach(function(c){
       var div = document.createElement('div');
       div.className = c.cls;
       div.setAttribute('style', c.style);
       div.innerHTML = c.text;
-      floorplan.appendChild(div);
+      target.appendChild(div);
     });
   }
 
@@ -613,6 +671,141 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
+
+  // ---------- Planned seating view (read-only) ----------
+  var PLAN = [{"t":1,"n":"Abi Velurethu","s":2,"c":"PCP Church"},{"t":1,"n":"Blesson Philip","s":2,"c":"PCP Church"},{"t":1,"n":"Jaison Rajan","s":2,"c":"PCP Church"},{"t":1,"n":"Noble Mathew","s":2,"c":"PCP Church"},{"t":1,"n":"Sean Mathew","s":2,"c":"PCP Church"},{"t":1,"n":"Jessen Alancheril","s":2,"c":"Extended Family"},{"t":2,"n":"Lal Chacko","s":2,"c":"Extended Family"},{"t":2,"n":"Sean Philip","s":2,"c":"Extended Family"},{"t":2,"n":"Chacko Pallivathukkal","s":2,"c":"Extended Family"},{"t":2,"n":"Varghese Joseph (Salim)","s":1,"c":"Extended Family"},{"t":2,"n":"Reuben Sam","s":3,"c":"Stephen Friends"},{"t":2,"n":"Bibin Mathew","s":2,"c":"Stephen Friends"},{"t":3,"n":"Philip Varughese","s":3,"c":"Family Friend"},{"t":3,"n":"Bini Mathew","s":1,"c":"Family Friend"},{"t":3,"n":"Sara Samuel","s":2,"c":"Family Friend"},{"t":3,"n":"Benoy Thomas","s":2,"c":"PCP Church"},{"t":3,"n":"Biju Jacob","s":2,"c":"PCP Church"},{"t":3,"n":"Shaji Mathew","s":2,"c":"PCP Church"},{"t":4,"n":"Jacob George","s":2,"c":"Extended Family"},{"t":4,"n":"Sam George","s":2,"c":"Extended Family"},{"t":4,"n":"Belwin Chacko","s":4,"c":"PCP Church"},{"t":4,"n":"Linda George","s":1,"c":"PCP Church"},{"t":4,"n":"Thomas Abraham","s":3,"c":"PCP Church"},{"t":5,"n":"Mathai Joseph","s":3,"c":"Extended Family"},{"t":5,"n":"Annamma Simon","s":3,"c":"Extended Family"},{"t":5,"n":"Sunil John","s":3,"c":"Extended Family"},{"t":5,"n":"Thomas Jacob","s":1,"c":"Extended Family"},{"t":5,"n":"Shawn Jacob","s":2,"c":"Extended Family"},{"t":6,"n":"Jacob Mathew","s":3,"c":"Extended Family"},{"t":6,"n":"John Edavettal","s":3,"c":"Extended Family"},{"t":6,"n":"Blesson Geevarghese","s":3,"c":"PCP Church"},{"t":6,"n":"Jeevan Varghese","s":3,"c":"PCP Church"},{"t":7,"n":"Jefry Aby Kurian","s":2,"c":"PCP Church"},{"t":7,"n":"Amal Mathew","s":1,"c":"PCP Church"},{"t":7,"n":"Mathew Varghese","s":3,"c":"PCP Church"},{"t":7,"n":"Stanley Eapen Cherian","s":3,"c":"PCP Church"},{"t":7,"n":"Wesley Thampy","s":3,"c":"PCP Church"},{"t":8,"n":"Saji Mathew","s":2,"c":"Extended Family"},{"t":8,"n":"Sajee Varkey","s":2,"c":"Extended Family"},{"t":8,"n":"Jolley Philip","s":2,"c":"Extended Family"},{"t":8,"n":"Sajumon Joy","s":2,"c":"Extended Family"},{"t":8,"n":"Alexander Cherian","s":2,"c":"Extended Family"},{"t":8,"n":"Geomon George","s":2,"c":"Family Friend"},{"t":9,"n":"Pastor Mathew D. George","s":2,"c":"Pastor"},{"t":9,"n":"Pastor Cherian P Cherian","s":2,"c":"Pastor"},{"t":9,"n":"Pastor John Mathew","s":2,"c":"Pastor"},{"t":9,"n":"Pastor Sajan Mathew","s":2,"c":"Pastor"},{"t":9,"n":"Anil Kuruvila","s":2,"c":"PCP Church"},{"t":9,"n":"Bosy Chandapillai","s":2,"c":"PCP Church"},{"t":10,"n":"Daniel George","s":2,"c":"PCP Church"},{"t":10,"n":"Finney Abraham","s":2,"c":"PCP Church"},{"t":10,"n":"Geevarghese M George","s":2,"c":"PCP Church"},{"t":10,"n":"Hermise Raju","s":2,"c":"PCP Church"},{"t":10,"n":"Jinto K George","s":2,"c":"PCP Church"},{"t":10,"n":"Johnson B Mathew","s":2,"c":"PCP Church"},{"t":11,"n":"Josen Varghese","s":2,"c":"PCP Church"},{"t":11,"n":"Joseph S Jose","s":2,"c":"PCP Church"},{"t":11,"n":"Joseph Varghese (Pastor)","s":2,"c":"Pastor"},{"t":11,"n":"Kevin McDermott","s":2,"c":"PCP Church"},{"t":11,"n":"Levis Abraham","s":2,"c":"PCP Church"},{"t":11,"n":"Riya Ninan","s":2,"c":"PCP Church"},{"t":12,"n":"Philip P Mathai","s":2,"c":"PCP Church"},{"t":12,"n":"Shogy Madhavasseril Babu","s":2,"c":"PCP Church"},{"t":12,"n":"Robin Sunny","s":2,"c":"PCP Church"},{"t":12,"n":"Roy Mathew","s":2,"c":"PCP Church"},{"t":12,"n":"Shinu Varghese","s":2,"c":"PCP Church"},{"t":12,"n":"Sony Antony","s":2,"c":"PCP Church"},{"t":13,"n":"Koshy Raju","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Kodithoppil","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Varghese","s":2,"c":"PCP Church"},{"t":13,"n":"Thomas Varghese","s":2,"c":"PCP Church"},{"t":13,"n":"Jacob Mathew","s":2,"c":"PCP Church"},{"t":13,"n":"Biji Babu","s":2,"c":"PCP Church"},{"t":14,"n":"Stanley George","s":2,"c":"PCP Church"},{"t":14,"n":"Lena Chacko","s":2,"c":"Family Friend"},{"t":14,"n":"Tony Joesph","s":2,"c":"Extended Family"},{"t":14,"n":"Micky Asir","s":2,"c":"Immediate Family"},{"t":14,"n":"Sabu Samuel","s":2,"c":"Boston Church"},{"t":14,"n":"Mathew Thomas","s":1,"c":"Extended Family"},{"t":14,"n":"Bijo Joseph","s":1,"c":"Extended Family"},{"t":15,"n":"Asha Varghese (NY)","s":1,"c":"Family Friend"},{"t":15,"n":"Suja Mathew","s":1,"c":"Extended Family"},{"t":15,"n":"Abhi Patel","s":1,"c":"Stephen Friends"},{"t":15,"n":"Isaac Hong","s":1,"c":"Stephen Friends"},{"t":15,"n":"Shawn Abraham","s":1,"c":"Stephen Friends"},{"t":15,"n":"Cody Liu","s":1,"c":"Stephen Friends"},{"t":15,"n":"Leena Mathew","s":1,"c":"PCP Church"},{"t":15,"n":"Lyni Sunil","s":1,"c":"PCP Church"},{"t":15,"n":"Soni R S","s":1,"c":"PCP Church"},{"t":15,"n":"Eapen Cherian","s":1,"c":"PCP Church"},{"t":15,"n":"Roshini Thomas","s":1,"c":"PCP Church"},{"t":15,"n":"Jose kuruvila","s":1,"c":"PCP Church"},{"t":16,"n":"Mathew Philip (JoyKutty)","s":3,"c":"Boston Church"},{"t":16,"n":"Mathew Tharakan","s":3,"c":"Boston Church"},{"t":16,"n":"Fredi David","s":2,"c":"Feba Family"},{"t":16,"n":"Pr Bethel Johnson","s":2,"c":"Boston Church"},{"t":16,"n":"Lance Daniel","s":2,"c":"Boston Church"},{"t":17,"n":"Usha Jose","s":1,"c":"PCP Church"},{"t":17,"n":"Aneena Alex","s":1,"c":"Family Friend"},{"t":17,"n":"Rejini Abraham","s":1,"c":"Family Friend"},{"t":17,"n":"Varughese m mathew","s":1,"c":"Family Friend"},{"t":17,"n":"Anil Mathew","s":1,"c":"Immediate Family"},{"t":17,"n":"Rincy Roy","s":1,"c":"Immediate Family"},{"t":17,"n":"Roslyn Roy","s":1,"c":"Immediate Family"},{"t":17,"n":"Dany Kevin Johnson (Pastor)","s":1,"c":"Chicago"},{"t":17,"n":"Bipin Zachariah","s":1,"c":"Boston Church"},{"t":17,"n":"Febin Fredi","s":1,"c":"Feba Family"},{"t":18,"n":"Abraham Cherian","s":2,"c":"Immediate Family"},{"t":18,"n":"Vinu Joseph","s":2,"c":"Immediate Family"},{"t":18,"n":"Roshan Joseph","s":4,"c":"Immediate Family"},{"t":18,"n":"Sanju Zachariah","s":4,"c":"Immediate Family"},{"t":19,"n":"Prasad Abraham","s":5,"c":"Immediate Family"},{"t":19,"n":"Cherian Abraham","s":4,"c":"Immediate Family"},{"t":19,"n":"Jenson Jen Jacob","s":3,"c":"Immediate Family"},{"t":20,"n":"Mercy Mathew","s":3,"c":"Immediate Family"},{"t":20,"n":"Roy Varghese","s":2,"c":"Immediate Family"},{"t":20,"n":"Rajan (Mathew)","s":1,"c":"Immediate Family"},{"t":20,"n":"Shibi George","s":3,"c":"Immediate Family"},{"t":20,"n":"Johnson Zachariah","s":2,"c":"Immediate Family"},{"t":20,"n":"Pheba Johnson","s":1,"c":"Immediate Family"},{"t":24,"n":"Jason Daniel","s":1,"c":"PCP Church"},{"t":24,"n":"Justin Daniel","s":1,"c":"PCP Church"},{"t":24,"n":"Jaison Johnson","s":1,"c":"PCP Church"},{"t":24,"n":"Josh Varghese (JV)","s":1,"c":"PCP Church"},{"t":24,"n":"Justin Sunil","s":1,"c":"PCP Church"},{"t":24,"n":"Delvin Cherian","s":2,"c":"Boston Young Adults"},{"t":24,"n":"Reshma Joseph","s":1,"c":"Boston Young Adults"},{"t":24,"n":"Benjamin George","s":1,"c":"Boston Young Adults"},{"t":24,"n":"Aaliyah Joseph","s":1,"c":"Young Adults (PCP)","f":"Vinu Joseph"},{"t":24,"n":"Anissa John","s":1,"c":"Young Adults (PCP)","f":"Sunil John"},{"t":24,"n":"Alvin John","s":1,"c":"Young Adults (PCP)","f":"Sunil John"},{"t":25,"n":"Joel Sajumon","s":1,"c":"Young Adults (PCP)","f":"Sajumon Joy"},{"t":25,"n":"Abigail Sajumon","s":1,"c":"Young Adults (PCP)","f":"Sajumon Joy"},{"t":25,"n":"Elijah Velurethu","s":1,"c":"Young Adults (PCP)","f":"Abi Velurethu"},{"t":25,"n":"Kezia Philip","s":1,"c":"Young Adults (PCP)","f":"Blesson Philip"},{"t":25,"n":"Zach Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"David Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"Rebekah Chandapillai","s":1,"c":"Young Adults (PCP)","f":"Bosy Chandapillai"},{"t":25,"n":"Amelia Jose","s":1,"c":"Young Adults (PCP)","f":"Joseph S Jose"},{"t":25,"n":"Angelia Jose","s":1,"c":"Young Adults (PCP)","f":"Joseph S Jose"},{"t":25,"n":"Ria Kuruvila","s":1,"c":"Young Adults (PCP)","f":"Leena Mathew"},{"t":25,"n":"Rithin Kuruvila","s":1,"c":"Young Adults (PCP)","f":"Leena Mathew"},{"t":25,"n":"Shaina Mathew","s":1,"c":"Young Adults (PCP)","f":"Shaji Mathew"},{"t":26,"n":"Madhuri Dantuluri","s":4,"c":"Boston Church"},{"t":26,"n":"Prince Paul","s":4,"c":"Chicago Pastor"},{"t":26,"n":"Jibu Jacob","s":4,"c":"Boston Church"},{"t":27,"n":"Stephen Karunakaran","s":5,"c":"Boston Church"},{"t":27,"n":"Jacob Alexander","s":5,"c":"Boston Church"},{"t":27,"n":"Lalu Kurian","s":2,"c":"Boston Church"},{"t":28,"n":"Phenny Mathai Philip","s":6,"c":"Boston Church"},{"t":28,"n":"Robin John","s":6,"c":"Boston Church"},{"t":29,"n":"Johnsy Chacko John","s":5,"c":"Boston Church"},{"t":29,"n":"Jobin Saju Idicula","s":5,"c":"Boston Church"},{"t":29,"n":"Robinson Cherian","s":2,"c":"Feba Family Friend"},{"t":30,"n":"Aaron Varghese","s":1,"c":"Young Adults (PCP)","f":"Shinu Varghese"},{"t":30,"n":"Joshua Varghese","s":1,"c":"Young Adults (PCP)","f":"Shinu Varghese"},{"t":30,"n":"Nikita Sunil","s":1,"c":"Young Adults (PCP)","f":"Lyni Sunil"},{"t":30,"n":"Deborah George","s":1,"c":"Young Adults (PCP)","f":"Geomon George"},{"t":30,"n":"Joel Varghese","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Freny Shiju","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Angel Paul","s":1,"c":"Boston Young Adults"},{"t":30,"n":"Benoy Joseph","s":1,"c":"Boston Young Adults"}];
+
+  var planFloorplan = document.getElementById('planFloorplan');
+  var planGuestList = document.getElementById('planGuestList');
+  var planTableGrid = document.getElementById('planTableGrid');
+  var planStats = document.getElementById('planStats');
+  var planSearch = document.getElementById('planSearch');
+  var planFocus = null;
+
+  function planByTable(){
+    var m = {};
+    for (var t = 1; t <= TABLE_COUNT; t++) m[t] = [];
+    PLAN.forEach(function(g){ m[g.t].push(g); });
+    return m;
+  }
+
+  function renderPlan(){
+    var byTable = planByTable();
+    var q = planSearch.value.trim().toLowerCase();
+    var matches = q ? PLAN.filter(function(g){
+      return g.n.toLowerCase().indexOf(q) !== -1 || ('table ' + g.t) === q || String(g.t) === q;
+    }) : [];
+    var matchTables = {};
+    matches.forEach(function(g){ matchTables[g.t] = true; });
+    if (planFocus) matchTables[planFocus] = true;
+    var anyMatch = Object.keys(matchTables).length > 0;
+
+    var total = PLAN.reduce(function(s, g){ return s + g.s; }, 0);
+    var used = 0;
+    for (var t = 1; t <= TABLE_COUNT; t++) if (byTable[t].length) used++;
+    planStats.innerHTML = [
+      {n: PLAN.length, l:'Parties / Groups'},
+      {n: total, l:'Guests Placed'},
+      {n: used + ' / ' + TABLE_COUNT, l:'Tables Used'},
+      {n: TABLE_COUNT - used, l:'Tables Open'}
+    ].map(function(s){
+      return '<div class="stat"><div class="stat-num">' + s.n + '</div><div class="stat-label">' + s.l + '</div></div>';
+    }).join('');
+
+    // guest finder list
+    var list = q ? matches : PLAN.slice().sort(function(a, b){ return a.n.localeCompare(b.n); });
+    planGuestList.innerHTML = list.length ? list.map(function(g){
+      return '<button type="button" class="guest-card" style="cursor:pointer" data-table="' + g.t + '">' +
+        '<span>' + escapeHtml(g.n) + '</span><span class="gc-count">Table ' + g.t + '</span></button>';
+    }).join('') : '<p class="empty-note">No matches.</p>';
+    Array.prototype.forEach.call(planGuestList.querySelectorAll('.guest-card'), function(btn){
+      btn.addEventListener('click', function(){
+        planFocus = parseInt(btn.getAttribute('data-table'), 10);
+        renderPlan();
+        var card = planTableGrid.querySelector('[data-card="' + planFocus + '"]');
+        if (card && card.scrollIntoView) card.scrollIntoView({behavior:'smooth', block:'center'});
+      });
+    });
+
+    // floor plan
+    planFloorplan.innerHTML = '';
+    buildFloorplanChrome(planFloorplan);
+    Object.keys(TABLE_POS).forEach(function(key){
+      var num = parseInt(key, 10);
+      var pos = TABLE_POS[key];
+      var guests = byTable[num];
+      var count = guests.reduce(function(s, g){ return s + g.s; }, 0);
+      var el = document.createElement('div');
+      el.className = 'fp-table plan ' + tableStatusClass(count) +
+        (anyMatch ? (matchTables[num] ? ' match' : ' dim') : '');
+      el.style.left = pos[0] + '%';
+      el.style.top = pos[1] + '%';
+      el.innerHTML = '<span class="fp-num">' + num + '</span><span class="fp-fill">' + count + '/' + MAX_SEATS + '</span>';
+      el.title = 'Table ' + num + ': ' + count + ' planned' + (guests.length ? ' — ' + guests.map(function(g){ return g.n; }).join(', ') : '');
+      el.addEventListener('click', function(n){
+        return function(){
+          planFocus = (planFocus === n) ? null : n;
+          renderPlan();
+          var card = planTableGrid.querySelector('[data-card="' + n + '"]');
+          if (card && card.scrollIntoView) card.scrollIntoView({behavior:'smooth', block:'center'});
+        };
+      }(num));
+      planFloorplan.appendChild(el);
+    });
+
+    // table cards
+    planTableGrid.innerHTML = '';
+    for (var tn = 1; tn <= TABLE_COUNT; tn++) {
+      var gs = byTable[tn];
+      var c = gs.reduce(function(s, g){ return s + g.s; }, 0);
+      var cls = tableStatusClass(c);
+      var cc = cls === 'empty' ? '' : (cls === 'over' ? 'over' : (cls === 'under' ? 'under' : 'full'));
+      var card = document.createElement('div');
+      card.className = 'table-card' + (matchTables[tn] ? ' focus' : '');
+      card.setAttribute('data-card', tn);
+      var body = gs.length ? gs.map(function(g){
+        var ya = g.c === 'Young Adults (PCP)';
+        return '<div class="tc-guest' + (ya ? ' ya' : '') + '"><span>' + escapeHtml(g.n) + ' (' + g.s + ')' +
+          (g.f ? '<span class="tc-cat">from ' + escapeHtml(g.f) + '&#39;s family</span>' : '') + '</span></div>';
+      }).join('') : '<div class="tc-empty-note">Open</div>';
+      card.innerHTML = '<div class="table-card-head"><span class="tc-num">Table ' + tn + '</span><span class="tc-count ' + cc + '">' + c + ' / ' + MAX_SEATS + '</span></div>' +
+        '<div class="tc-guests">' + body + '</div>';
+      planTableGrid.appendChild(card);
+    }
+  }
+
+  var liveView = document.getElementById('liveView');
+  var planView = document.getElementById('planView');
+  var tabLive = document.getElementById('tabLive');
+  var tabPlan = document.getElementById('tabPlan');
+  function setView(v){
+    var isPlan = v === 'plan';
+    liveView.hidden = isPlan;
+    planView.hidden = !isPlan;
+    tabLive.classList.toggle('active', !isPlan);
+    tabPlan.classList.toggle('active', isPlan);
+    if (isPlan) renderPlan();
+    try { location.hash = isPlan ? 'plan' : ''; } catch(e){}
+  }
+  tabLive.addEventListener('click', function(){ setView('live'); });
+  tabPlan.addEventListener('click', function(){ setView('plan'); });
+  planSearch.addEventListener('input', function(){ planFocus = null; renderPlan(); });
+
+  document.getElementById('planExportBtn').addEventListener('click', function(){
+    var nl = String.fromCharCode(10);
+    var lines = ['Table,Name,Guests,Category'];
+    PLAN.forEach(function(g){
+      lines.push([g.t, '"' + g.n.replace(/"/g,'""') + '"', g.s, '"' + g.c.replace(/"/g,'""') + '"'].join(','));
+    });
+    var blob = new Blob([lines.join(nl)], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'planned-seating.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  if (location.hash === '#plan') setView('plan');
 
   loadData();
 })();
