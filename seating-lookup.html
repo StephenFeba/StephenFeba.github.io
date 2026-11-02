@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Find Your Seat &mdash; Stephen &amp; Feba</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;1,9..144,450&family=Newsreader:ital,wght@0,400;0,500;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --ink:#20265C; --paper:#F6F2FC; --paper-2:#EAE1F7; --wine:#4B3A96; --gold:#C9A961; --line:rgba(32,38,92,0.18);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; color:var(--ink); font-family:'Newsreader',serif;
+    background:
+      radial-gradient(ellipse 140% 90% at 50% 0%, rgba(134,112,201,0.10), transparent 55%),
+      linear-gradient(180deg,#FAF7FD 0%,#F5F0FB 40%,#EFE8F9 100%);
+  }
+  .wrap{max-width:640px; margin:0 auto; padding:36px 16px 60px;}
+  header{text-align:center; margin-bottom:26px;}
+  .monogram{width:56px; height:56px; display:block; margin:0 auto 12px;}
+  h1{font-family:'Fraunces',serif; font-style:italic; font-weight:450; font-size:clamp(30px,8vw,40px); margin:0 0 6px; color:var(--wine);}
+  .sub{font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:#6a6255;}
+  .lead{text-align:center; font-size:17px; line-height:1.5; margin:0 0 18px; color:#3b3f6b;}
+
+  .search{position:relative;}
+  .search input{
+    width:100%; font-family:'Newsreader',serif; font-size:20px; padding:15px 16px;
+    border:1px solid var(--ink); background:#fff; color:var(--ink); border-radius:0;
+    box-shadow:0 14px 28px -20px rgba(32,38,92,0.45);
+  }
+  .search input:focus{outline:2px solid var(--gold); outline-offset:2px;}
+  .hint{font-size:13px; font-style:italic; color:#6a6255; margin:8px 2px 0; text-align:center;}
+
+  .results{display:flex; flex-direction:column; gap:8px; margin-top:16px;}
+  .res{
+    display:flex; justify-content:space-between; align-items:center; gap:12px; text-align:left; width:100%;
+    border:1px solid var(--line); background:var(--paper); padding:13px 15px; cursor:pointer;
+    font-family:'Newsreader',serif; font-size:17px; color:var(--ink);
+    transition:border-color .15s, background .15s;
+  }
+  .res:hover,.res:focus-visible{border-color:var(--gold); background:var(--paper-2); outline:none;}
+  .res small{display:block; font-size:13px; font-style:italic; color:#6a6255; margin-top:2px;}
+  .res .tb{font-family:'Space Mono',monospace; font-size:12px; color:var(--wine); white-space:nowrap;}
+
+  .card{
+    border:1px solid var(--gold); background:var(--paper-2); padding:22px 18px 20px; margin-top:18px; text-align:center;
+    box-shadow:0 22px 40px -26px rgba(32,38,92,0.4);
+  }
+  .card .who{font-family:'Fraunces',serif; font-style:italic; font-size:24px; color:var(--wine); margin:0;}
+  .card .via{font-size:14px; font-style:italic; color:#6a6255; margin:2px 0 0;}
+  .card .label{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:#6a6255; margin:16px 0 0;}
+  .bignum{font-family:'Fraunces',serif; font-weight:300; font-size:clamp(84px,26vw,120px); line-height:1; color:var(--ink); margin:2px 0 4px;}
+  .party{font-size:15px; color:#3b3f6b; margin:0 0 4px;}
+
+  .map{position:relative; width:100%; aspect-ratio:4/3; background:#fdfcfb; border:1px solid var(--line); margin-top:14px; overflow:hidden;}
+  .mapin{position:absolute; inset:0; transition:transform .45s ease;}
+  .map.zoomed .mapin{transform:scale(2.4);}
+  .zoombtn{margin-top:10px; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase;
+    background:var(--paper); border:1px solid var(--wine); color:var(--wine); padding:8px 14px; cursor:pointer;}
+  .zoombtn:hover{background:var(--wine); color:var(--paper);}
+  .pin{position:absolute; transform:translate(-50%,-135%); z-index:8; background:var(--ink); color:#fff; padding:2px 7px;
+    font-family:'Space Mono',monospace; font-size:clamp(7px,1.9vw,11px); white-space:nowrap; letter-spacing:0.04em;}
+  .pin:after{content:''; position:absolute; left:50%; top:100%; margin-left:-4px; border:4px solid transparent; border-top-color:var(--ink);}
+  .map:not(.zoomed) .pin{font-size:clamp(8px,2.2vw,12px);}
+  .room{position:absolute; border:1px solid rgba(32,38,92,0.55); display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono',monospace; font-size:clamp(6px,1.7vw,10px); text-align:center; color:var(--ink); background:#fafafa; line-height:1.15;}
+  .room.bar{background:#ece6f7;} .room.df{background:#f7f5f2; letter-spacing:0.08em;} .room.ht{border-style:dashed; background:#fdfcfb;}
+  .tbl{position:absolute; width:4.4%; aspect-ratio:1/1; border-radius:50%; border:1px solid rgba(75,58,150,0.35); background:#f1ecfa;
+    transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces',serif; font-size:clamp(5px,1.3vw,9px); color:rgba(32,38,92,0.6);}
+  .tbl.me{background:var(--wine); border-color:var(--wine); color:#fff; z-index:5; width:7%; font-size:clamp(9px,2.3vw,15px); font-weight:600;
+    box-shadow:0 0 0 4px rgba(201,169,97,0.55); animation:pulse 1.8s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(201,169,97,0.6);}50%{box-shadow:0 0 0 9px rgba(201,169,97,0);}}
+  @media (prefers-reduced-motion:reduce){.tbl.me{animation:none;}}
+  .mapnote{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; color:#6a6255; margin:8px 0 0; text-transform:uppercase;}
+
+  .mates{margin-top:18px; text-align:left; border-top:1px solid var(--line); padding-top:12px;}
+  .mates h3{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--wine); margin:0 0 8px; font-weight:400; text-align:center;}
+  .mates ul{list-style:none; margin:0; padding:0; columns:2; column-gap:18px; font-size:15px;}
+  .mates li{padding:3px 0; break-inside:avoid;}
+  @media (max-width:420px){.mates ul{columns:1;}}
+
+  .back{display:inline-block; margin-top:16px; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase;
+    background:none; border:1px solid var(--ink); color:var(--ink); padding:9px 14px; cursor:pointer;}
+  .back:hover{background:var(--ink); color:var(--paper);}
+  .empty{text-align:center; font-style:italic; color:#6a6255; margin-top:20px; line-height:1.5;}
+  .foot{text-align:center; margin-top:34px; font-size:13px; color:#7a7264; font-style:italic;}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="monogram" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+      <circle cx="40" cy="40" r="30" stroke="#C9A961" stroke-width="1"/>
+      <circle cx="40" cy="40" r="34" stroke="#C9A961" stroke-width="0.6" opacity="0.5"/>
+      <text x="40" y="49" text-anchor="middle" font-family="Fraunces, serif" font-style="italic" font-size="24" fill="#20265C">S&amp;F</text>
+    </svg>
+    <h1>Find Your Table</h1>
+    <div class="sub">Stephen &amp; Feba &middot; November 7, 2026</div>
+  </header>
+
+  <p class="lead">Type your name to find where you&rsquo;ll be seated.</p>
+
+  <div class="search">
+    <input id="q" type="search" placeholder="Your first or last name" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Search for your name">
+  </div>
+  <p class="hint" id="hint">Try just a last name if you can&rsquo;t find yourself.</p>
+
+  <div class="results" id="results" aria-live="polite"></div>
+  <div id="detail" hidden></div>
+
+  <p class="foot">Can&rsquo;t find your name? Ask any member of the wedding party and we&rsquo;ll point you to your seat.</p>
+</div>
+
+<script>
+(function(){
+  var SUPABASE_URL = 'https://fdcswbuhflwncxusfmra.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_ZE1OzAv_zst4ekTfhCZK2g_JHrN5Cw4';
+  var client = null;
+  if (window.supabase) { try { client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch(e){} }
+
+  var DATA = {"plan":[{"id":"p0","t":1,"n":"Abi Velurethu","s":2},{"id":"p1","t":1,"n":"Blesson Philip","s":2},{"id":"p2","t":1,"n":"Jaison Rajan","s":2},{"id":"p3","t":1,"n":"Noble Mathew","s":2},{"id":"p4","t":1,"n":"Sean Mathew","s":2},{"id":"p5","t":1,"n":"Jessen Alancheril","s":2},{"id":"p6","t":2,"n":"Lal Chacko","s":2},{"id":"p7","t":2,"n":"Sean Philip","s":2},{"id":"p8","t":2,"n":"Chacko Pallivathukkal","s":2},{"id":"p9","t":2,"n":"Varghese Joseph","s":1},{"id":"p10","t":2,"n":"Reuben Sam","s":3},{"id":"p11","t":2,"n":"Bibin Mathew","s":2},{"id":"p12","t":3,"n":"Philip Varughese","s":3},{"id":"p13","t":3,"n":"Bini Mathew","s":1},{"id":"p14","t":3,"n":"Sara Samuel","s":2},{"id":"p15","t":3,"n":"Benoy Thomas","s":2},{"id":"p16","t":3,"n":"Biju Jacob","s":2},{"id":"p17","t":3,"n":"Shaji Mathew","s":2},{"id":"p18","t":4,"n":"Jacob George","s":2},{"id":"p19","t":4,"n":"Sam George","s":2},{"id":"p20","t":4,"n":"Belwin Chacko","s":4},{"id":"p21","t":4,"n":"Linda George","s":1},{"id":"p22","t":4,"n":"Thomas Abraham","s":3},{"id":"p23","t":5,"n":"Mathai Joseph","s":3},{"id":"p24","t":5,"n":"Annamma Simon","s":3},{"id":"p25","t":5,"n":"Sunil John","s":3},{"id":"p26","t":5,"n":"Thomas Jacob","s":1},{"id":"p27","t":5,"n":"Shawn Jacob","s":2},{"id":"p28","t":6,"n":"Jacob Mathew","s":3},{"id":"p29","t":6,"n":"John Edavettal","s":3},{"id":"p30","t":6,"n":"Blesson Geevarghese","s":3},{"id":"p31","t":6,"n":"Jeevan Varghese","s":3},{"id":"p32","t":7,"n":"Jefry Aby Kurian","s":2},{"id":"p33","t":7,"n":"Amal Mathew","s":1},{"id":"p34","t":7,"n":"Mathew Varghese","s":3},{"id":"p35","t":7,"n":"Stanley Eapen Cherian","s":3},{"id":"p36","t":7,"n":"Wesley Thampy","s":3},{"id":"p37","t":8,"n":"Saji Mathew","s":2},{"id":"p38","t":8,"n":"Sajee Varkey","s":2},{"id":"p39","t":8,"n":"Jolley Philip","s":2},{"id":"p40","t":8,"n":"Sajumon Joy","s":2},{"id":"p41","t":8,"n":"Alexander Cherian","s":2},{"id":"p42","t":8,"n":"Geomon George","s":2},{"id":"p43","t":9,"n":"Pastor Mathew D. George","s":2},{"id":"p44","t":9,"n":"Pastor Cherian P Cherian","s":2},{"id":"p45","t":9,"n":"Pastor John Mathew","s":2},{"id":"p46","t":9,"n":"Pastor Sajan Mathew","s":2},{"id":"p47","t":9,"n":"Anil Kuruvila","s":2},{"id":"p48","t":9,"n":"Bosy Chandapillai","s":2},{"id":"p49","t":10,"n":"Daniel George","s":2},{"id":"p50","t":10,"n":"Finney Abraham","s":2},{"id":"p51","t":10,"n":"Geevarghese M George","s":2},{"id":"p52","t":10,"n":"Hermise Raju","s":2},{"id":"p53","t":10,"n":"Jinto K George","s":2},{"id":"p54","t":10,"n":"Johnson B Mathew","s":2},{"id":"p55","t":11,"n":"Josen Varghese","s":2},{"id":"p56","t":11,"n":"Joseph S Jose","s":2},{"id":"p57","t":11,"n":"Joseph Varghese","s":2},{"id":"p58","t":11,"n":"Kevin McDermott","s":2},{"id":"p59","t":11,"n":"Levis Abraham","s":2},{"id":"p60","t":11,"n":"Riya Ninan","s":2},{"id":"p61","t":12,"n":"Philip P Mathai","s":2},{"id":"p62","t":12,"n":"Shogy Madhavasseril Babu","s":2},{"id":"p63","t":12,"n":"Robin Sunny","s":2},{"id":"p64","t":12,"n":"Roy Mathew","s":2},{"id":"p65","t":12,"n":"Shinu Varghese","s":2},{"id":"p66","t":12,"n":"Sony Antony","s":2},{"id":"p67","t":13,"n":"Koshy Raju","s":2},{"id":"p68","t":13,"n":"Thomas Kodithoppil","s":2},{"id":"p69","t":13,"n":"Thomas Varghese","s":2},{"id":"p70","t":13,"n":"Thomas Varghese","s":2},{"id":"p71","t":13,"n":"Jacob Mathew","s":2},{"id":"p72","t":13,"n":"Biji Babu","s":2},{"id":"p73","t":14,"n":"Stanley George","s":2},{"id":"p74","t":14,"n":"Lena Chacko","s":2},{"id":"p75","t":14,"n":"Tony Joesph","s":2},{"id":"p76","t":14,"n":"Micky Asir","s":2},{"id":"p77","t":14,"n":"Sabu Samuel","s":2},{"id":"p78","t":14,"n":"Mathew Thomas","s":1},{"id":"p79","t":14,"n":"Bijo Joseph","s":1},{"id":"p80","t":15,"n":"Asha Varghese","s":1},{"id":"p81","t":15,"n":"Suja Mathew","s":1},{"id":"p82","t":15,"n":"Abhi Patel","s":1},{"id":"p83","t":15,"n":"Isaac Hong","s":1},{"id":"p84","t":15,"n":"Shawn Abraham","s":1},{"id":"p85","t":15,"n":"Cody Liu","s":1},{"id":"p86","t":15,"n":"Leena Mathew","s":1},{"id":"p87","t":15,"n":"Lyni Sunil","s":1},{"id":"p88","t":15,"n":"Soni R S","s":1},{"id":"p89","t":15,"n":"Eapen Cherian","s":1},{"id":"p90","t":15,"n":"Roshini Thomas","s":1},{"id":"p91","t":15,"n":"Jose kuruvila","s":1},{"id":"p92","t":16,"n":"Mathew Philip","s":3},{"id":"p93","t":16,"n":"Mathew Tharakan","s":3},{"id":"p94","t":16,"n":"Fredi David","s":2},{"id":"p95","t":16,"n":"Pr Bethel Johnson","s":2},{"id":"p96","t":16,"n":"Lance Daniel","s":2},{"id":"p97","t":17,"n":"Usha Jose","s":1},{"id":"p98","t":17,"n":"Aneena Alex","s":1},{"id":"p99","t":17,"n":"Rejini Abraham","s":1},{"id":"p100","t":17,"n":"Varughese m mathew","s":1},{"id":"p101","t":17,"n":"Anil Mathew","s":1},{"id":"p102","t":17,"n":"Rincy Roy","s":1},{"id":"p103","t":17,"n":"Roslyn Roy","s":1},{"id":"p104","t":17,"n":"Dany Kevin Johnson","s":1},{"id":"p105","t":17,"n":"Bipin Zachariah","s":1},{"id":"p106","t":17,"n":"Febin Fredi","s":1},{"id":"p107","t":18,"n":"Abraham Cherian","s":2},{"id":"p108","t":18,"n":"Vinu Joseph","s":2},{"id":"p109","t":18,"n":"Roshan Joseph","s":4},{"id":"p110","t":18,"n":"Sanju Zachariah","s":4},{"id":"p111","t":19,"n":"Prasad Abraham","s":5},{"id":"p112","t":19,"n":"Cherian Abraham","s":4},{"id":"p113","t":19,"n":"Jenson Jen Jacob","s":3},{"id":"p114","t":20,"n":"Mercy Mathew","s":3},{"id":"p115","t":20,"n":"Roy Varghese","s":2},{"id":"p116","t":20,"n":"Rajan Mathew","s":1},{"id":"p117","t":20,"n":"Shibi George","s":3},{"id":"p118","t":20,"n":"Johnson Zachariah","s":2},{"id":"p119","t":20,"n":"Pheba Johnson","s":1},{"id":"p120","t":24,"n":"Jason Daniel","s":1},{"id":"p121","t":24,"n":"Justin Daniel","s":1},{"id":"p122","t":24,"n":"Jaison Johnson","s":1},{"id":"p123","t":24,"n":"Josh Varghese","s":1},{"id":"p124","t":24,"n":"Justin Sunil","s":1},{"id":"p125","t":24,"n":"Delvin Cherian","s":2},{"id":"p126","t":24,"n":"Reshma Joseph","s":1},{"id":"p127","t":24,"n":"Benjamin George","s":1},{"id":"p128","t":24,"n":"Aaliyah Joseph","s":1},{"id":"p129","t":24,"n":"Anissa John","s":1},{"id":"p130","t":24,"n":"Alvin John","s":1},{"id":"p131","t":25,"n":"Joel Sajumon","s":1},{"id":"p132","t":25,"n":"Abigail Sajumon","s":1},{"id":"p133","t":25,"n":"Elijah Velurethu","s":1},{"id":"p134","t":25,"n":"Kezia Philip","s":1},{"id":"p135","t":25,"n":"Zach Chandapillai","s":1},{"id":"p136","t":25,"n":"David Chandapillai","s":1},{"id":"p137","t":25,"n":"Rebekah Chandapillai","s":1},{"id":"p138","t":25,"n":"Amelia Jose","s":1},{"id":"p139","t":25,"n":"Angelia Jose","s":1},{"id":"p140","t":25,"n":"Ria Kuruvila","s":1},{"id":"p141","t":25,"n":"Rithin Kuruvila","s":1},{"id":"p142","t":25,"n":"Shaina Mathew","s":1},{"id":"p143","t":26,"n":"Madhuri Dantuluri","s":4},{"id":"p144","t":26,"n":"Prince Paul","s":4},{"id":"p145","t":26,"n":"Jibu Jacob","s":4},{"id":"p146","t":27,"n":"Stephen Karunakaran","s":5},{"id":"p147","t":27,"n":"Jacob Alexander","s":5},{"id":"p148","t":27,"n":"Lalu Kurian","s":2},{"id":"p149","t":28,"n":"Phenny Mathai Philip","s":6},{"id":"p150","t":28,"n":"Robin John","s":6},{"id":"p151","t":29,"n":"Johnsy Chacko John","s":5},{"id":"p152","t":29,"n":"Jobin Saju Idicula","s":5},{"id":"p153","t":29,"n":"Robinson Cherian","s":2},{"id":"p154","t":30,"n":"Aaron Varghese","s":1},{"id":"p155","t":30,"n":"Joshua Varghese","s":1},{"id":"p156","t":30,"n":"Nikita Sunil","s":1},{"id":"p157","t":30,"n":"Deborah George","s":1},{"id":"p158","t":30,"n":"Joel Varghese","s":1},{"id":"p159","t":30,"n":"Freny Shiju","s":1},{"id":"p160","t":30,"n":"Angel Paul","s":1},{"id":"p161","t":30,"n":"Benoy Joseph","s":1}],"aliases":{"p0":["Teena Velurethu"],"p1":["Jessy Philip"],"p2":["Sonia Jaison"],"p3":["Jeffin Mathew"],"p4":["Steffy Mathew"],"p5":["Alice Alancheril"],"p7":["Ruth Philip"],"p8":["Saramma Chacko"],"p10":["Elsa Paul","Julia Sam"],"p11":["Jasmin Mathew"],"p12":["Susan Thomas","Sabrina Philip"],"p15":["Jefhy Thomas"],"p16":["Shalini Jacob"],"p17":["Shiny Shaji"],"p18":["Mercy Jacob"],"p19":["Joy George"],"p20":["Faith Belwin","Isabella"],"p22":["Susan Abraham","Christina Thomas"],"p24":["Feiba Simon","Evelyn Simon"],"p25":["Joyce John","John Appachan"],"p26":["Jincy Jacob"],"p27":["Rachel Jacob","Isabella Jacob"],"p28":["Suma Mathew","Sam Mathew"],"p29":["Cisy Edavettal","Gabrielle Edavettal"],"p30":["Anu Blesson","Ivanna Blesson"],"p31":["Blessy Varghese"],"p32":["Asha Mathew"],"p34":["Jayamol Mathew"],"p35":["Tincy Stanley","Jonathan Stanley"],"p36":["Feba Thampy","Ethan Thampy"],"p37":["Shiny Mathew"],"p38":["Lovely Sajee"],"p39":["Sara Philip"],"p40":["Suja George"],"p41":["Susan Alexander"],"p42":["Reji George"],"p43":["Jesly George"],"p44":["Saly Cherian"],"p45":["Kunjumol Mathew"],"p46":["Raji Mathew"],"p47":["Lini Kuruvila"],"p48":["Gigi Chandapillai","Zachary Chandapillai"],"p49":["Mony Daniel"],"p50":["Sofia Abraham"],"p51":["Mariamma Geevarghese"],"p52":["Silpa John"],"p53":["Merin Jinto"],"p54":["Elizabeth Johnson"],"p55":["Laly Josen"],"p56":["Berlin Joseph"],"p57":["Jaya Joseph"],"p58":["Jiji McDermott"],"p59":["Reshma Abraham"],"p61":["Lalamma Philip"],"p62":["Rensu Varghese"],"p63":["Lydia Robin"],"p64":["Mercy Roy"],"p65":["Mercy Varghese"],"p66":["Anu Sony"],"p67":["Soma Raju"],"p68":["Annamma mammen"],"p69":["Elizabeth Thomas"],"p70":["Simoni Thomas"],"p71":["Lilly Jacob"],"p73":["Beena George"],"p74":["Jeremiah Chacko"],"p75":["Sheba Joseph"],"p76":["Rachel Asir"],"p88":["Soni Aleyamma"],"p92":["Nathan Philip","Hannah Philip"],"p93":["Grace Tharakan","Ben Tharakan"],"p94":["Grace Fredi"],"p95":["Susan Johnson"],"p96":["Jamie Daniel"],"p100":["Saji varughese"],"p107":["Annamma Abraham"],"p108":["Anitha Joesph"],"p110":["Reena Sanju","Johan Sanju","Ashlyn Sanju"],"p111":["Lija Abraham","Jacob Abraham","Joshua Abraham","Benjamin Abraham"],"p112":["Asha Abraham","Gabriella Abraham","Sarah"],"p113":["Stephy Johnson","Jessica Jacob"],"p114":["Merlin Mathew","Annamma Mathew"],"p115":["Ancy Roy"],"p117":["Simon George","Sylas George"],"p118":["Shiji Johnson"],"p125":["Kristen Kurian"],"p143":["Rishitha Dantuluri","Varshitha Dantuluri","Ritvik Dantuluri"],"p144":["Betty Paul","Aaron Paul","David Paul"],"p145":["Shibiya Jibu","Juan Jibu","Mariam Jibu"],"p146":["Shanthi Chandrababu","Neelavathy Chandrababu","Joshua Samuel","Angie Samuel"],"p147":["Sethu Alexander","Daniel Alexander","David Alexander","Chrysta"],"p148":["Suzane Thomas"],"p149":["Mabin Joseph","Jonathan Philip","Benjamin Philip","P M Philip","Annamma Philip"],"p150":["Feby Mathew","Sarah John","Samuel John","Selah John"],"p151":["Joemon John","Babu Chacko","Reena Chacko"],"p152":["Anita George","Lucas John Jobin","Levi Josiah Jobin","Leelamma George"],"p153":["Susan Robinson"]}};
+  var PLAN = DATA.plan;
+  var ALIASES = DATA.aliases;
+
+  var TABLE_POS = {
+    1:[37.6,24.7], 2:[43.3,24.7], 3:[49.2,24.7],
+    7:[34.7,30.2], 6:[40.5,30.2], 5:[46.3,30.2], 4:[52.0,30.2],
+    8:[33.0,36.8], 9:[38.4,36.9], 10:[43.8,36.8], 11:[49.2,36.8], 12:[54.1,36.9],
+    15:[33.8,44.1], 14:[44.2,44.1], 13:[53.3,44.0],
+    16:[26.4,50.7], 18:[40.4,50.7], 20:[51.2,50.6],
+    17:[35.1,53.4], 19:[45.8,55.6],
+    21:[57.0,54.5], 22:[63.7,53.9], 23:[69.9,55.0],
+    25:[61.5,60.1], 24:[67.8,60.0],
+    28:[20.2,58.4], 27:[26.4,57.7], 26:[31.8,58.4],
+    29:[25.9,65.6],
+    30:[62.0,79.9], 31:[68.6,79.9],
+    33:[65.3,87.1], 32:[72.3,87.1]
+  };
+  var CHROME = [
+    ['room','left:19.3%;top:24.6%;width:6.7%;height:10%;','Ladies<br>Room'],
+    ['room','left:19.3%;top:34.7%;width:6.7%;height:7.8%;','Mens<br>Room'],
+    ['room bar','left:8.3%;top:46.7%;width:10.5%;height:6.5%;','BAR'],
+    ['room bar','left:9%;top:86%;width:9.1%;height:5.5%;','BAR'],
+    ['room','left:19.3%;top:77.1%;width:10.9%;height:5.7%;','BAND'],
+    ['room df','left:32.5%;top:62.7%;width:24.5%;height:23.9%;','DANCE FLOOR'],
+    ['room','left:40.4%;top:81%;width:8.4%;height:4.3%;','B&amp;G'],
+    ['room ht','left:80.6%;top:47.3%;width:9%;height:7.8%;','Head<br>Table'],
+    ['room ht','left:80.6%;top:75.1%;width:9%;height:7.8%;','Head<br>Table']
+  ];
+
+  var q = document.getElementById('q');
+  var resultsEl = document.getElementById('results');
+  var detailEl = document.getElementById('detail');
+  var hintEl = document.getElementById('hint');
+  var entries = [];   // searchable: {planId, label, display, t, viaParty}
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function norm(s){
+    return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+  }
+
+  function buildEntries(){
+    entries = [];
+    PLAN.forEach(function(g){
+      if (!g.t) return;
+      entries.push({ pid: g.id, name: g.n, t: g.t, via: null, key: norm(g.n) });
+      (ALIASES[g.id] || []).forEach(function(a){
+        entries.push({ pid: g.id, name: a, t: g.t, via: g.n, key: norm(a) });
+      });
+    });
+  }
+
+  function score(entry, tokens){
+    var words = entry.key.split(' ');
+    var total = 0;
+    for (var i = 0; i < tokens.length; i++) {
+      var tk = tokens[i], best = 0;
+      for (var j = 0; j < words.length; j++) {
+        var w = words[j];
+        if (w === tk) best = Math.max(best, 3);
+        else if (w.indexOf(tk) === 0) best = Math.max(best, 2);
+        else if (tk.length >= 3 && w.indexOf(tk) !== -1) best = Math.max(best, 1);
+      }
+      if (!best) return 0;
+      total += best;
+    }
+    if (entry.key === tokens.join(' ')) total += 4;
+    return total;
+  }
+
+  function search(text){
+    var tokens = norm(text).split(' ').filter(Boolean);
+    if (!tokens.length) return [];
+    var out = [];
+    entries.forEach(function(e){
+      var s = score(e, tokens);
+      if (s) out.push({ e: e, s: s });
+    });
+    out.sort(function(a, b){ return b.s - a.s || a.e.name.localeCompare(b.e.name); });
+    // collapse duplicates (same person listed twice)
+    var seen = {}, res = [];
+    out.forEach(function(o){
+      var k = o.e.pid + '|' + o.e.key;
+      if (seen[k]) return; seen[k] = 1; res.push(o.e);
+    });
+    return res.slice(0, 12);
+  }
+
+  function showResults(list, text){
+    detailEl.hidden = true;
+    resultsEl.hidden = false;
+    if (!norm(text)) { resultsEl.innerHTML = ''; hintEl.hidden = false; return; }
+    hintEl.hidden = true;
+    if (!list.length) {
+      resultsEl.innerHTML = '<p class="empty">We couldn&rsquo;t find &ldquo;' + esc(text.trim()) + '&rdquo;.<br>Try a different spelling, or just your last name.</p>';
+      return;
+    }
+    resultsEl.innerHTML = list.map(function(e, i){
+      return '<button type="button" class="res" data-i="' + i + '"><span>' + esc(e.name) +
+        (e.via ? '<small>Seated with ' + esc(e.via) + '&rsquo;s party</small>' : '') +
+        '</span><span class="tb">Table ' + e.t + '</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(resultsEl.querySelectorAll('.res'), function(b){
+      b.addEventListener('click', function(){ showDetail(list[parseInt(b.getAttribute('data-i'), 10)]); });
+    });
+  }
+
+  function mapHtml(t){
+    var inner = CHROME.map(function(c){ return '<div class="' + c[0] + '" style="' + c[1] + '">' + c[2] + '</div>'; }).join('');
+    Object.keys(TABLE_POS).forEach(function(k){
+      var p = TABLE_POS[k], me = parseInt(k, 10) === t;
+      inner += '<div class="tbl' + (me ? ' me' : '') + '" style="left:' + p[0] + '%;top:' + p[1] + '%">' + k + '</div>';
+    });
+    var pos = TABLE_POS[t];
+    var origin = pos ? ('transform-origin:' + pos[0] + '% ' + pos[1] + '%;') : '';
+    return '<div class="map" id="theMap" role="img" aria-label="Floor plan with Table ' + t + ' highlighted"><div class="mapin" style="' + origin + '">' + inner + '</div></div>' +
+      '<button type="button" class="zoombtn" id="zoomBtn">Zoom in on my table</button>';
+  }
+
+  function showDetail(e){
+    var mates = PLAN.filter(function(g){ return g.t === e.t && g.id !== e.pid; });
+    var party = PLAN.find(function(g){ return g.id === e.pid; });
+    var matesHtml = mates.length
+      ? '<div class="mates"><h3>Also at Table ' + e.t + '</h3><ul>' +
+        mates.map(function(g){ return '<li>' + esc(g.n) + '</li>'; }).join('') + '</ul></div>'
+      : '';
+    detailEl.innerHTML =
+      '<div class="card">' +
+        '<p class="who">' + esc(e.name) + '</p>' +
+        (e.via ? '<p class="via">in ' + esc(e.via) + '&rsquo;s party</p>' : '') +
+        mapHtml(e.t) +
+        '<p class="mapnote">Grand Ballroom &middot; your table is highlighted</p>' +
+        '<p class="label">You are seated at table</p>' +
+        '<div class="bignum">' + e.t + '</div>' +
+        (party && party.s > 1 ? '<p class="party">Party of ' + party.s + '</p>' : '') +
+        matesHtml +
+        '<button type="button" class="back" id="backBtn">&larr; Search again</button>' +
+      '</div>';
+    resultsEl.hidden = true;
+    detailEl.hidden = false;
+    var zb = document.getElementById('zoomBtn'), mp = document.getElementById('theMap');
+    zb.addEventListener('click', function(){
+      var z = mp.classList.toggle('zoomed');
+      zb.textContent = z ? 'Show full room' : 'Zoom in on my table';
+    });
+    document.getElementById('backBtn').addEventListener('click', function(){
+      detailEl.hidden = true; resultsEl.hidden = false; q.focus(); q.select();
+    });
+    if (detailEl.scrollIntoView) detailEl.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function run(){
+    var text = q.value;
+    var list = search(text);
+    showResults(list, text);
+  }
+  q.addEventListener('input', run);
+  q.addEventListener('keydown', function(ev){
+    if (ev.key === 'Enter') {
+      var list = search(q.value);
+      if (list.length === 1) showDetail(list[0]);
+      else if (list.length > 1) { var b = resultsEl.querySelector('.res'); if (b) b.focus(); }
+    }
+  });
+
+  async function loadLive(){
+    if (!client) return;
+    try {
+      var res = await client.from('seating_plan').select('data').eq('id', 'main').maybeSingle();
+      if (!res.error && res.data && Array.isArray(res.data.data) && res.data.data.length) {
+        PLAN = res.data.data;
+        buildEntries();
+        if (!detailEl.hidden) { /* keep current card */ } else run();
+      }
+    } catch(e){}
+  }
+
+  buildEntries();
+  loadLive();
+})();
+</script>
+</body>
+</html>
