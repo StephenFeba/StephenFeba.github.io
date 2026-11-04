@@ -236,6 +236,19 @@
   .modal h3{font-family:'Fraunces',serif; font-style:italic; font-weight:450; color:var(--wine); margin:0; font-size:22px;}
   .modal label{display:flex; flex-direction:column; gap:4px; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#6a6255;}
   .modal input, .modal select{font-family:'Newsreader',serif; font-size:15px; padding:8px 10px; border:1px solid var(--ink); background:#fff; color:var(--ink); text-transform:none; letter-spacing:0;}
+  .pm-members{border:1px solid var(--line); background:#fff; padding:10px; display:flex; flex-direction:column; gap:8px;}
+  .pm-h{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#6a6255;}
+  .pm-mrow{display:flex; align-items:center; gap:8px; font-size:14px; border-bottom:1px dotted var(--line); padding-bottom:5px;}
+  .pm-mrow span.nm{flex:1;}
+  .pm-mrow em{font-style:normal; font-family:'Space Mono',monospace; font-size:10px; color:#6a6255;}
+  .pm-mrow em.apart{color:var(--warn);}
+  .pm-mrow button, .pm-add button{font-family:'Space Mono',monospace; font-size:10px; text-transform:uppercase; background:none; border:1px solid var(--wine); color:var(--wine); padding:4px 8px; cursor:pointer;}
+  .pm-add{display:flex; gap:6px;}
+  .pm-add input[type=text]{flex:1; min-width:0;}
+  .pm-add input[type=number]{width:62px;}
+  .tc-fam{display:block; font-family:'Space Mono',monospace; font-size:9px; color:#8a8274; margin-top:1px;}
+  .tc-fam.apart{color:var(--warn);}
+  .plan-chk{display:inline-flex; align-items:center; gap:6px; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.05em; text-transform:uppercase; color:var(--wine); cursor:pointer;}
   .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:4px;}
   .modal-actions .danger{margin-right:auto; color:var(--over); border-color:var(--over);}
   .state-msg{text-align:center; font-style:italic; color:#6a6255; padding:30px 0;}
@@ -313,6 +326,7 @@
     <div class="stats" id="planStats"></div>
     <div class="toolbar-row">
       <span class="plan-status" id="planStatus"></span>
+      <label class="plan-chk" title="When you move a family head, linked family members seated at the same table move with them"><input type="checkbox" id="planTogether" checked> Move families together</label>
       <button class="btn secondary" id="planUndoBtn">Undo</button>
       <button class="btn" id="planAddBtn">+ Add Guest / Party</button>
       <button class="btn secondary" id="planExportBtn">Export CSV</button>
@@ -359,6 +373,16 @@
     <label>Number of guests <input type="number" id="pmSize" min="1" value="1"></label>
     <label>Table <select id="pmTable"></select></label>
     <label>Group / note (optional) <input type="text" id="pmCat" autocomplete="off"></label>
+    <label>Family / household <select id="pmFam"></select></label>
+    <div class="pm-members" id="pmMembers" hidden>
+      <div class="pm-h">Family members</div>
+      <div id="pmMemberList"></div>
+      <div class="pm-add">
+        <input type="text" id="pmAddName" placeholder="Add a family member&rsquo;s name" autocomplete="off">
+        <input type="number" id="pmAddSize" min="1" value="1" aria-label="Number of people">
+        <button type="button" id="pmAddBtn">+ Add</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button type="button" class="btn secondary danger" id="pmDelete">Delete</button>
       <button type="button" class="btn secondary" id="pmCancel">Cancel</button>
@@ -816,19 +840,32 @@
     renderPlan();
   }
 
+  function membersOf(id){ return PLAN.filter(function(x){ return x.fam === id; }); }
+  function headOf(g){ return g && g.fam ? findG(g.fam) : null; }
+  var planTogether = document.getElementById('planTogether');
+  try { if (localStorage.getItem('sf_plan_together') === '0') planTogether.checked = false; } catch(e){}
+  planTogether.addEventListener('change', function(){
+    try { localStorage.setItem('sf_plan_together', planTogether.checked ? '1' : '0'); } catch(e){}
+  });
+
   function movePlan(id, t, silent){
     var g = findG(id);
     if (!g) return;
     if (g.t === t) return;
     snapshot();
+    var from = g.t, carried = [];
+    if (planTogether.checked) {
+      membersOf(g.id).forEach(function(m){ if (m.t === from) { m.t = t; carried.push(m); } });
+    }
     g.t = t;
     planSelected = null;
     changed();
     if (!silent) {
-      if (t === null) { showToast(g.n + ' moved to Unseated.'); }
+      var extra = carried.length ? ' with ' + carried.length + ' family member' + (carried.length > 1 ? 's' : '') : '';
+      if (t === null) { showToast(g.n + extra + ' moved to Unseated.'); }
       else {
         var c = tCount(t);
-        showToast(g.n + ' → Table ' + t + (c > MAX_SEATS ? ' (now ' + c + '/' + MAX_SEATS + ' — over capacity)' : ''));
+        showToast(g.n + extra + ' → Table ' + t + (c > MAX_SEATS ? ' (now ' + c + '/' + MAX_SEATS + ' — over capacity)' : ''));
       }
     }
   }
@@ -871,8 +908,21 @@
     });
   }
 
+  function famLine(g){
+    var hd = headOf(g);
+    if (hd) {
+      var apart = hd.t !== g.t;
+      return '<span class="tc-fam' + (apart ? ' apart' : '') + '">family of ' + escapeHtml(hd.n) +
+        (apart ? (hd.t ? ' · at Table ' + hd.t : ' · unseated') : '') + '</span>';
+    }
+    var k = membersOf(g.id).length;
+    return k ? '<span class="tc-fam">+ ' + k + ' linked family member' + (k > 1 ? 's' : '') + '</span>' : '';
+  }
+
   function guestRowHtml(g){
-    return '<span>' + escapeHtml(g.n) + (g.s > 1 ? ' (' + g.s + ')' : '') + '</span>' +
+    var hd = headOf(g);
+    return '<span>' + escapeHtml(g.n) + (g.s > 1 ? ' (' + g.s + ')' : '') +
+      (hd ? '<span class="tc-fam">' + escapeHtml(hd.n) + '&#39;s family</span>' : '') + '</span>' +
       '<span class="gc-count">' + (g.t ? 'Table ' + g.t : 'Unseated') + '</span>';
   }
 
@@ -880,7 +930,8 @@
     var byTable = planByTable();
     var q = planSearch.value.trim().toLowerCase();
     function matchesQ(g){
-      return !q || g.n.toLowerCase().indexOf(q) !== -1 || String(g.t) === q || ('table ' + g.t) === q;
+      var hd = headOf(g);
+      return !q || g.n.toLowerCase().indexOf(q) !== -1 || (hd && hd.n.toLowerCase().indexOf(q) !== -1) || String(g.t) === q || ('table ' + g.t) === q;
     }
     var matches = q ? PLAN.filter(matchesQ) : [];
     var matchTables = {};
@@ -989,7 +1040,8 @@
           var ya = g.c === 'Young Adults (PCP)';
           return '<div class="tc-guest pg' + (ya ? ' ya' : '') + '" data-id="' + g.id + '">' +
             '<button type="button" class="pg-name" data-edit="' + g.id + '">' + escapeHtml(g.n) + ' (' + g.s + ')' +
-            (g.f ? '<span class="tc-cat">from ' + escapeHtml(g.f) + '&#39;s family</span>' : '') + '</button></div>';
+            (g.f && !g.fam ? '<span class="tc-cat">from ' + escapeHtml(g.f) + '&#39;s family</span>' : '') +
+            famLine(g) + '</button></div>';
         }).join('') : '<div class="tc-empty-note">Open &mdash; drop a guest here</div>';
         card.innerHTML = '<div class="table-card-head"><span class="tc-num">Table ' + tn + '</span><span class="tc-count ' + cc + '">' + c + ' / ' + MAX_SEATS + '</span></div>' +
           '<div class="tc-guests">' + body + '</div>';
@@ -1017,6 +1069,72 @@
     pmTable.innerHTML = o;
   })();
 
+  var pmFam = document.getElementById('pmFam');
+  var pmMembers = document.getElementById('pmMembers');
+  var pmMemberList = document.getElementById('pmMemberList');
+
+  function fillFamOptions(g){
+    var hasMembers = g && membersOf(g.id).length > 0;
+    var opts = '<option value="">None (standalone)</option>';
+    PLAN.filter(function(x){ return !x.fam && (!g || x.id !== g.id); })
+      .sort(function(a, b){ return a.n.localeCompare(b.n); })
+      .forEach(function(x){
+        opts += '<option value="' + escapeHtml(x.id) + '">' + escapeHtml(x.n) + (x.t ? ' (Table ' + x.t + ')' : ' (unseated)') + '</option>';
+      });
+    pmFam.innerHTML = opts;
+    pmFam.value = g && g.fam ? g.fam : '';
+    pmFam.disabled = !!hasMembers;
+    pmFam.title = hasMembers ? 'This guest is a family head with linked members; unlink them first to make this person a member of another family.' : '';
+  }
+  pmFam.addEventListener('change', function(){
+    // picking a family while unseated -> default to the family's table
+    var hd = pmFam.value ? findG(pmFam.value) : null;
+    if (hd && hd.t && !pmTable.value) pmTable.value = String(hd.t);
+  });
+
+  function renderMembers(g){
+    if (!g) { pmMembers.hidden = true; return; }
+    pmMembers.hidden = false;
+    var ms = membersOf(g.id);
+    pmMemberList.innerHTML = ms.length ? ms.map(function(m){
+      var apart = m.t !== g.t;
+      return '<div class="pm-mrow"><span class="nm">' + escapeHtml(m.n) + (m.s > 1 ? ' (' + m.s + ')' : '') + '</span>' +
+        '<em class="' + (apart ? 'apart' : '') + '">' + (m.t ? 'Table ' + m.t : 'unseated') + '</em>' +
+        (apart && g.t ? '<button type="button" data-bring="' + m.id + '">Bring here</button>' : '') +
+        '<button type="button" data-unlink="' + m.id + '">Unlink</button></div>';
+    }).join('') : '<div class="pm-h" style="text-transform:none; letter-spacing:0">No linked family members yet.</div>';
+    Array.prototype.forEach.call(pmMemberList.querySelectorAll('[data-unlink]'), function(b){
+      b.addEventListener('click', function(){
+        var m = findG(b.getAttribute('data-unlink')); if (!m) return;
+        snapshot(); m.fam = null; changed(); renderMembers(g); fillFamOptions(g);
+      });
+    });
+    Array.prototype.forEach.call(pmMemberList.querySelectorAll('[data-bring]'), function(b){
+      b.addEventListener('click', function(){
+        var m = findG(b.getAttribute('data-bring')); if (!m) return;
+        snapshot(); m.t = g.t; changed(); renderMembers(g);
+        showToast(m.n + ' moved to Table ' + g.t + '.');
+      });
+    });
+  }
+  document.getElementById('pmAddBtn').addEventListener('click', function(){
+    var g = editingId ? findG(editingId) : null;
+    var nm = document.getElementById('pmAddName').value.trim();
+    var sz = parseInt(document.getElementById('pmAddSize').value, 10) || 1;
+    if (!g || !nm) { showToast('Enter the family member\u2019s name first.'); return; }
+    snapshot();
+    PLAN.push({ id: newId(), t: g.t, n: nm, s: sz, c: 'Family of ' + g.n, fam: g.id });
+    document.getElementById('pmAddName').value = '';
+    document.getElementById('pmAddSize').value = 1;
+    changed();
+    fillFamOptions(g);
+    renderMembers(g);
+    showToast(nm + ' added to ' + g.n + '\u2019s family' + (g.t ? ' at Table ' + g.t : '') + '.');
+  });
+  document.getElementById('pmAddName').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.stopPropagation(); document.getElementById('pmAddBtn').click(); }
+  });
+
   function openPlanModal(id){
     editingId = id || null;
     var g = id ? findG(id) : null;
@@ -1026,6 +1144,8 @@
     pmSize.value = g ? g.s : 1;
     pmTable.value = g && g.t ? String(g.t) : '';
     pmCat.value = g ? (g.c || '') : '';
+    fillFamOptions(g);
+    renderMembers(g);
     planModal.hidden = false;
     setTimeout(function(){ pmName.focus(); }, 30);
   }
@@ -1041,12 +1161,20 @@
     if (!size || size < 1) size = 1;
     var t = pmTable.value ? parseInt(pmTable.value, 10) : null;
     var cat = pmCat.value.trim();
+    var famId = pmFam.value || null;
+    var famHead = famId ? findG(famId) : null;
+    if (famHead && !t && famHead.t) t = famHead.t;   // join the family's table by default
     snapshot();
     if (editingId) {
       var g = findG(editingId);
-      if (g) { g.n = name; g.s = size; g.t = t; g.c = cat || g.c || ''; if (cat !== (g.c || '')) g.c = cat; }
+      if (g) {
+        g.n = name; g.s = size; g.t = t; g.c = cat || g.c || ''; if (cat !== (g.c || '')) g.c = cat;
+        if (!pmFam.disabled) { if (famId) g.fam = famId; else delete g.fam; }
+      }
     } else {
-      PLAN.push({ id: newId(), t: t, n: name, s: size, c: cat || 'Added' });
+      var ng = { id: newId(), t: t, n: name, s: size, c: cat || (famHead ? 'Family of ' + famHead.n : 'Added') };
+      if (famId) ng.fam = famId;
+      PLAN.push(ng);
     }
     var over = t && tCount(t) > MAX_SEATS;
     closePlanModal();
@@ -1058,6 +1186,7 @@
     if (!g) return;
     snapshot();
     PLAN = PLAN.filter(function(x){ return x.id !== g.id; });
+    PLAN.forEach(function(x){ if (x.fam === g.id) delete x.fam; });
     closePlanModal();
     changed();
     showToast(g.n + ' deleted. Use Undo to bring back.');
@@ -1106,7 +1235,7 @@
         if (!Array.isArray(arr)) throw new Error('bad');
         snapshot();
         PLAN = arr.map(function(g){
-          return { id: g.id || newId(), t: g.t ? parseInt(g.t, 10) : null, n: String(g.n || 'Guest'), s: parseInt(g.s, 10) || 1, c: g.c || '', f: g.f };
+          return { id: g.id || newId(), t: g.t ? parseInt(g.t, 10) : null, n: String(g.n || 'Guest'), s: parseInt(g.s, 10) || 1, c: g.c || '', f: g.f, fam: g.fam || undefined };
         });
         changed();
         showToast('Plan restored from backup.');

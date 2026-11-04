@@ -173,7 +173,8 @@
     entries = [];
     PLAN.forEach(function(g){
       if (!g.t) return;
-      entries.push({ pid: g.id, name: g.n, t: g.t, via: null, key: norm(g.n) });
+      var hd = g.fam ? PLAN.find(function(x){ return x.id === g.fam; }) : null;
+      entries.push({ pid: g.id, name: g.n, t: g.t, via: hd ? hd.n : null, key: norm(g.n) });
       (ALIASES[g.id] || []).forEach(function(a){
         entries.push({ pid: g.id, name: a, t: g.t, via: g.n, key: norm(a) });
       });
