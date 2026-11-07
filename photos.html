@@ -48,7 +48,11 @@
 
   .ext a{display:block; text-align:center; text-decoration:none; font-family:'Space Mono',monospace; font-size:13px; letter-spacing:0.06em; text-transform:uppercase;
     padding:15px 16px; border:1px solid var(--wine); color:var(--paper); background:var(--wine); margin-top:10px;}
+  .ext a{display:flex !important; align-items:center; justify-content:center; gap:12px;}
+  .ext a[hidden]{display:none !important;}
   .ext a:hover{opacity:.88;}
+  .ext .lg{width:38px; height:38px; background:#fff; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .ext .lg img{width:26px; height:26px; object-fit:contain; display:block;}
   .lead2{margin:0 0 6px; font-size:16px; line-height:1.5; color:#3b3f6b; text-align:center;}
 
   .ghead{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:30px 0 12px;}
@@ -90,8 +94,8 @@
   <div class="panel ext" id="extPanel" hidden>
     <h2>Preferred &middot; best quality</h2>
     <p class="lead2">For the <strong>highest-quality photos and videos</strong>, please join one of our shared albums and add your photos there. They upload as full-resolution originals.</p>
-    <a id="gpLink" href="#" target="_blank" rel="noopener" hidden>Join our Google Photos album</a>
-    <a id="pcLink" href="#" target="_blank" rel="noopener" hidden>Join our Photo Circle album</a>
+    <a id="gpLink" href="#" target="_blank" rel="noopener" hidden><span class="lg"><img src="https://www.google.com/s2/favicons?domain=photos.google.com&sz=128" alt="" width="26" height="26" onerror="this.parentNode.style.display='none'"></span><span>Join our Google Photos album</span></a>
+    <a id="pcLink" href="#" target="_blank" rel="noopener" hidden><span class="lg"><img src="https://www.google.com/s2/favicons?domain=photocircleapp.com&sz=128" alt="" width="26" height="26" onerror="this.parentNode.style.display='none'"></span><span>Join our Photo Circle album</span></a>
     <p class="note">Either one works &mdash; pick whichever app you already use.</p>
   </div>
 
@@ -138,7 +142,7 @@
   var BUCKET = 'wedding-photos';
   // Paste your shared-album invite links here (leave '' to hide the button):
   var GOOGLE_PHOTOS_URL = 'https://photos.app.goo.gl/xJzf21Dc9z5wqvnq7';
-  var PHOTO_CIRCLE_URL  = 'https://join.photocircleapp.com/9dcef06b-82bc-451e-b126-02241fd590f9';
+  var PHOTO_CIRCLE_URL  = 'https://join.photocircleapp.com/C225W6PWFH';
   // ====================
   var MAX_SIDE = 2400, THUMB_SIDE = 480, PAGE = 36;
   var client = null;
